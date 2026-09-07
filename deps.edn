@@ -1,0 +1,26 @@
+{:paths ["src"]
+ :deps {tensegritics/clojuredart
+        {:git/url "https://github.com/tensegritics/ClojureDart.git"
+         :sha "01c41592574d53b5970dfae4e22019dd328083de"}
+
+        amjil/mgl-components
+        {:local/root "../mgl-components"}
+
+        amjil/mongol-virtual-keyboard
+        {:local/root "../m-v-k"}
+
+        amjil/mongol-desktop-ime
+        {:local/root "../m-h-k"}
+
+        amjil/mgl-ime-core
+        {:local/root "../m-i-c"}
+
+        amjil/mgl-block-editor
+        {:local/root "../mgl-block-editor"}
+
+        amjil/mgl-richtext-editor
+        {:local/root "../mgl-richtext-editor"}}
+
+ :aliases {:cljd {:main-opts ["-m" "cljd.build"]}}
+ :cljd/opts {:kind :flutter
+             :main epub-app.main}}
