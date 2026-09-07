@@ -1,0 +1,357 @@
+(ns epub-app.services.epub-core
+  "Thin ClojureDart wrapper around Dart EpubBridge."
+  (:require ["package:mgl_epub_reader/mgl_epub_reader.dart" :as epub]
+            ["package:flutter/material.dart" :as m]
+            ["package:flutter/services.dart" :as services]
+            ["package:file_selector/file_selector.dart" :as fs]
+            ["dart:async" :as async]
+            [epub-app.state.store :as store]))
+
+(defonce !bridge (atom nil))
+
+(declare open-chapter!)
+
+(defn init! []
+  (let [b (epub.EpubBridge/create)]
+    (await (.initialize b))
+    (reset! !bridge b)
+    (store/set-library! (await (.listBooks b)))
+    b))
+
+(defn dispose! []
+  (when-let [b @!bridge]
+    (await (.dispose b))
+    (reset! !bridge nil)))
+
+(defn- bridge []
+  (or @!bridge (throw (Exception. "EpubBridge not initialized"))))
+
+(defn refresh-library! []
+  (store/set-library! (await (.listBooks (bridge)))))
+
+(defn pick-and-import! []
+  (let [group (fs/XTypeGroup. .label "EPUB" .extensions #dart ^String ["epub"])
+        file (await (fs/openFile .acceptedTypeGroups #dart ^fs/XTypeGroup [group]))]
+    (when file
+      (store/set-status! :loading-book)
+      (try
+        (let [row (await (.importPath (bridge) (.-path file)))]
+          (await (refresh-library!))
+          (store/set-status! :idle)
+          row)
+        (catch Exception e
+          (store/set-error! (str e))
+          nil)))))
+
+(defn- page-index-for [pages position]
+  (if (or (nil? position) (empty? pages))
+    0
+    (.pageIndexFor ^epub/MglEpubEngineImpl (.-engine (bridge)) pages position)))
+
+(defn layout-config [size]
+  (let [s (:settings @store/app-state)]
+    (epub/ReaderLayoutConfig.
+     .viewport size
+     .fontSize (:font-size s)
+     .lineHeight (:line-height s)
+     .fontFamily (:font-family s)
+     .padding (m.EdgeInsets/all 28.0)
+     .writingMode (if (= (:writing-mode s) :vertical)
+                    epub.WritingMode/vertical
+                    epub.WritingMode/horizontal)
+     .readingDirection (if (= (:reading-direction s) :right-to-left)
+                         epub.ReadingDirection/rightToLeft
+                         epub.ReadingDirection/leftToRight))))
+
+(defn- persist-progress! []
+  (let [{:keys [library-book chapter pages page]} @store/app-state]
+    (when (and library-book chapter (seq pages))
+      (let [cur (nth pages page)
+            total (count pages)
+            prog (.progressFor ^epub/MglEpubEngineImpl (.-engine (bridge))
+                               .chapterId (.-id chapter)
+                               .pageIndex page
+                               .pageCount total)]
+        (.saveProgress (bridge)
+                       (epub/ReadingProgress.
+                        .bookId (.-id library-book)
+                        .chapterId (.-id chapter)
+                        .blockId (.-blockId (.-start cur))
+                        .offset (.-offset (.-start cur))
+                        .progress prog
+                        .updatedAt (dart:core/DateTime.now)))
+        (store/set-progress! prog)))))
+
+(defn paginate-current! [size]
+  (let [{:keys [chapter pending-position landing position]} @store/app-state]
+    (when chapter
+      (store/set-status! :paginating)
+      (try
+        (let [pages (await (.paginate (bridge) (.-id chapter) (layout-config size)))
+              saved (when-let [lb (:library-book @store/app-state)]
+                      (await (.loadProgress (bridge) (.-id lb))))
+              ch-id (.-id chapter)
+              idx (cond
+                    (and pending-position (= (.-chapterId pending-position) ch-id))
+                    (page-index-for pages pending-position)
+
+                    (and position (= (.-chapterId position) ch-id))
+                    (page-index-for pages position)
+
+                    (= landing :last)
+                    (max 0 (dec (count pages)))
+
+                    (and saved (= (.-chapterId saved) ch-id))
+                    (page-index-for pages (.-position saved))
+
+                    :else 0)]
+          (store/set-pending-position! nil)
+          (store/set-pages! pages idx)
+          (when (seq pages)
+            (store/set-position! (.-start (nth pages idx)))
+            (persist-progress!)))
+        (catch Exception e
+          (store/set-error! (str e)))))))
+
+(defn open-chapter!
+  ([chapter-id] (open-chapter! chapter-id :first))
+  ([chapter-id landing]
+   (store/set-landing! landing)
+   (store/set-status! :loading-chapter)
+   (try
+     (let [ch (await (.loadChapter (bridge) chapter-id))]
+       (store/set-chapter! ch)
+       ch)
+     (catch Exception e
+       (store/set-error! (str e))
+       nil))))
+
+(defn open-library-book! [id]
+  (store/set-status! :loading-book)
+  (store/clear-error!)
+  (try
+    (let [book (await (.openLibraryBook (bridge) id))
+          row (first (filter #(= (.-id %) id) (:library @store/app-state)))
+          chapters (.-chapters book)
+          chapter-id (or (when-let [p (await (.loadProgress (bridge) id))]
+                           (.-chapterId p))
+                         (when (seq chapters)
+                           (.-id (first chapters))))]
+      (store/set-open-book! row book)
+      (store/set-bookmarks! (await (.listBookmarks (bridge) id)))
+      (store/set-annotations! (await (.listAnnotations (bridge) id)))
+      (when chapter-id
+        (await (open-chapter! chapter-id :progress)))
+      book)
+    (catch Exception e
+      (store/set-error! (str e))
+      nil)))
+
+(defn go-to-page! [page]
+  (let [pages (:pages @store/app-state)
+        n (count pages)]
+    (when (and (pos? n) (>= page 0) (< page n))
+      (store/set-page! page)
+      (store/set-position! (.-start (nth pages page)))
+      (persist-progress!))))
+
+(defn next-page! []
+  (let [{:keys [page pages chapter]} @store/app-state]
+    (cond
+      (< page (dec (count pages)))
+      (go-to-page! (inc page))
+
+      :else
+      (when-let [next (.nextChapter ^epub/MglEpubEngineImpl (.-engine (bridge))
+                                    (.-id chapter))]
+        (await (open-chapter! (.-id next) :first))))))
+
+(defn previous-page! []
+  (let [{:keys [page chapter]} @store/app-state]
+    (cond
+      (pos? page)
+      (go-to-page! (dec page))
+
+      :else
+      (when-let [prev (.previousChapter ^epub/MglEpubEngineImpl (.-engine (bridge))
+                                        (.-id chapter))]
+        (await (open-chapter! (.-id prev) :last))))))
+
+(defn go-to-position! [position]
+  (store/set-pending-position! position)
+  (let [cid (.-chapterId position)
+        current (some-> (:chapter @store/app-state) .-id)
+        pages (:pages @store/app-state)]
+    (cond
+      (not= cid current)
+      (await (open-chapter! cid :first))
+
+      (seq pages)
+      (do
+        (store/set-pending-position! nil)
+        (go-to-page! (page-index-for pages position)))
+
+      :else nil)))
+
+(defn open-toc-href! [href]
+  (when-let [ch (.chapterByHref (bridge) href)]
+    (store/hide-chrome!)
+    (await (open-chapter! (.-id ch) :first))))
+
+(defn open-link! [href]
+  (when (and href
+             (not (.startsWith href "http://"))
+             (not (.startsWith href "https://"))
+             (not (.startsWith href "mailto:")))
+    (open-toc-href! href)))
+
+(defn add-bookmark! []
+  (let [{:keys [library-book position chapter]} @store/app-state]
+    (when (and library-book position)
+      (await (.addBookmark (bridge)
+                           .bookId (.-id library-book)
+                           .position position
+                           .title (some-> chapter .-title)))
+      (store/set-bookmarks!
+       (await (.listBookmarks (bridge) (.-id library-book)))))))
+
+(defn remove-bookmark! [id]
+  (await (.removeBookmark (bridge) id))
+  (when-let [lb (:library-book @store/app-state)]
+    (store/set-bookmarks! (await (.listBookmarks (bridge) (.-id lb))))))
+
+(defn search! [query]
+  (store/set-search! query [])
+  (store/set-highlight! nil)
+  (when (seq query)
+    (store/set-search! query (await (.search (bridge) query)))))
+
+(defn go-to-search-hit! [hit]
+  (store/set-highlight!
+   (epub/ReaderSelectionRange.
+    .blockId (.-blockId hit)
+    .start (.-offset hit)
+    .end (+ (.-offset hit) (.-length hit))))
+  (store/set-ui! :search-visible false)
+  (go-to-position! (.-position hit)))
+
+(defn select-block! [^epub/MglBlock block]
+  (when-let [ch (:chapter @store/app-state)]
+    (store/set-selection!
+     (epub/ReaderSelection.
+      .chapterId (.-id ch)
+      .blockId (.-id block)
+      .startOffset 0
+      .endOffset (.-textLength block)
+      .text (.-plainText block)))
+    (store/set-ui! :menu-visible true)
+    (store/set-ui! :note-visible false)))
+
+(defn clear-selection! []
+  (store/set-selection! nil)
+  (store/set-note-draft! "")
+  (store/set-ui! :note-visible false))
+
+(defn copy-selection! []
+  (when-let [sel (:selection @store/app-state)]
+    (services/Clipboard.setData (services/ClipboardData. .text (.-text sel)))
+    (clear-selection!)))
+
+(defn search-from-selection! []
+  (when-let [sel (:selection @store/app-state)]
+    (let [q (.-text sel)]
+      (store/set-selection! nil)
+      (store/set-ui! :note-visible false)
+      (store/set-ui! :search-visible true)
+      (search! q))))
+
+(defn- annotation-from-selection [style color note]
+  (let [{:keys [library-book selection]} @store/app-state]
+    (when (and library-book selection)
+      (epub/Annotation.
+       .id ""
+       .bookId (.-id library-book)
+       .chapterId (.-chapterId selection)
+       .start (.-start selection)
+       .end (.-end selection)
+       .style style
+       .color color
+       .note note
+       .createdAt (dart:core/DateTime.now)))))
+
+(defn- persist-annotation! [ann]
+  (when ann
+    (await (.addAnnotation (bridge) ann))
+    (store/set-annotations!
+     (await (.listAnnotations (bridge) (.-bookId ann))))
+    (clear-selection!)))
+
+(defn add-highlight! []
+  (persist-annotation!
+   (annotation-from-selection epub.AnnotationStyle/highlight "yellow" nil)))
+
+(defn add-underline! []
+  (persist-annotation!
+   (annotation-from-selection epub.AnnotationStyle/underline "yellow" nil)))
+
+(defn begin-note! []
+  (when (:selection @store/app-state)
+    (store/set-note-draft! "")
+    (store/set-ui! :note-visible true)))
+
+(defn save-note! [text]
+  (when-let [sel (:selection @store/app-state)]
+    (let [ch (:chapter @store/app-state)
+          quote (.-text sel)
+          payload (if (seq text)
+                    (str text "\n\n“" quote "”")
+                    (str "“" quote "”"))]
+      (try
+        (.noteFromSelection (bridge) sel (some-> ch .-title))
+        (catch Exception e
+          (dart:core/print (str "note metadata failed: " e))))
+      (persist-annotation!
+       (annotation-from-selection epub.AnnotationStyle/note "yellow" payload)))))
+
+(defn share-selection! []
+  (when-let [sel (:selection @store/app-state)]
+    (let [book (:book @store/app-state)
+          ch (:chapter @store/app-state)
+          cite (str "\"" (.-text sel) "\"\n— "
+                    (or (some-> book .-title) "")
+                    (if ch (str ", " (.-title ch)) ""))]
+      (services/Clipboard.setData (services/ClipboardData. .text cite))
+      (clear-selection!))))
+
+(defn remove-annotation! [id]
+  (await (.removeAnnotation (bridge) id))
+  (when-let [lb (:library-book @store/app-state)]
+    (store/set-annotations! (await (.listAnnotations (bridge) (.-id lb))))))
+
+(defn toggle-favorite! [id favorite]
+  (await (.setFavorite (bridge) id favorite))
+  (await (refresh-library!)))
+
+(defn set-finished! [id finished]
+  (await (.setFinished (bridge) id finished))
+  (await (refresh-library!)))
+
+(defn remove-book! [id]
+  (let [current (:library-book @store/app-state)]
+    (when (and current (= (.-id current) id))
+      (when-let [eng (some-> @!bridge .-engine)]
+        (.close ^epub/MglEpubEngineImpl eng))
+      (store/close-book!)))
+  (await (.removeBook (bridge) id))
+  (await (refresh-library!)))
+
+(defn ^#/(async/Future #/(List int)) load-image [^String resource-id]
+  (.loadResource ^epub/EpubBridge (bridge) resource-id))
+
+(defn theme-colors []
+  (.themeNamed (bridge) (name (:theme (:settings @store/app-state)))))
+
+(defn close-book! []
+  (when-let [eng (some-> @!bridge .-engine)]
+    (.close ^epub/MglEpubEngineImpl eng))
+  (store/close-book!))

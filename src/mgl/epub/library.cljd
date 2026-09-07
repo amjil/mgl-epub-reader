@@ -1,0 +1,18 @@
+(ns mgl.epub.library
+  (:require [epub-app.services.epub-core :as core]
+            [epub-app.state.store :as store]))
+
+(defn books []
+  (:library @store/app-state))
+
+(defn import-epub []
+  (core/pick-and-import!))
+
+(defn set-favorite [id favorite]
+  (core/toggle-favorite! id favorite))
+
+(defn set-finished [id finished]
+  (core/set-finished! id finished))
+
+(defn remove [id]
+  (core/remove-book! id))

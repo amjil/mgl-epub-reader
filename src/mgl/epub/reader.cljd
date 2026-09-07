@@ -1,0 +1,57 @@
+(ns mgl.epub.reader
+  (:require [epub-app.services.epub-core :as core]
+            [epub-app.state.store :as store]))
+
+(defn open [library-id]
+  (core/open-library-book! library-id))
+
+(defn open-chapter [chapter-id]
+  (core/open-chapter! chapter-id))
+
+(defn next-page []
+  (core/next-page!))
+
+(defn previous-page []
+  (core/previous-page!))
+
+(defn go-to-page [page]
+  (core/go-to-page! page))
+
+(defn go-to-position [position]
+  (core/go-to-position! position))
+
+(defn set-font-size [n]
+  (store/update-settings! :font-size (double n)))
+
+(defn set-line-height [n]
+  (store/update-settings! :line-height (double n)))
+
+(defn set-theme [theme]
+  (store/update-settings! :theme theme))
+
+(defn set-writing-mode [mode]
+  (store/update-settings! :writing-mode mode))
+
+(defn set-reading-direction [dir]
+  (store/update-settings! :reading-direction dir))
+
+(defn add-bookmark []
+  (core/add-bookmark!))
+
+(defn remove-bookmark [id]
+  (core/remove-bookmark! id))
+
+(defn highlight []
+  (core/add-highlight!))
+
+(defn underline []
+  (core/add-underline!))
+
+(defn add-note [text]
+  (core/save-note! text))
+
+(defn share []
+  (core/share-selection!))
+
+(defn search [query]
+  (core/search! query))

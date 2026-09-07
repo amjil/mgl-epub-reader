@@ -1,0 +1,67 @@
+(ns epub-app.theme
+  "Tenger design system — parchment + sky, built for vertical Mongolian UI."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]))
+
+(def font "OyunQaganTig")
+
+(def primary (m/Color 0xFF1A7AB3))
+(def primary-soft (m/Color 0xFFE3F1F8))
+(def primary-deep (m/Color 0xFF145E8A))
+(def bg (m/Color 0xFFF3EFE8))
+(def surface (m/Color 0xFFFFFCF7))
+(def surface-2 (m/Color 0xFFEBE6DD))
+(def ink (m/Color 0xFF1A1714))
+(def ink-muted (m/Color 0xFF6F6962))
+(def ink-faint (m/Color 0xFFA39C94))
+(def outline (m/Color 0xFFE4DDD3))
+(def danger (m/Color 0xFFC94B3C))
+(def gold (m/Color 0xFFC4A035))
+
+(def radius-s 10.0)
+(def radius-m 16.0)
+
+(defn fade [color opacity]
+  (.withOpacity ^m/Color color opacity))
+
+(defn mongol-style
+  [& {:keys [size weight color]
+      :or {size 16.0 color ink}}]
+  (m/TextStyle
+   .fontFamily font
+   .fontSize size
+   .fontWeight (or weight m.FontWeight/normal)
+   .color color
+   .height 1.35))
+
+(defn mongol-label
+  [text & {:keys [size color weight max-lines align]
+           :or {size 16.0 color ink weight m.FontWeight/normal}}]
+  (mgl/MongolText
+   (or text "")
+   .maxLines (when max-lines (int max-lines))
+   .overflow (when max-lines m.TextOverflow/ellipsis)
+   .textAlign align
+   .style (mongol-style :size size :color color :weight weight)))
+
+(defn card-shadow []
+  [(m/BoxShadow
+    .color (fade ink 0.06)
+    .blurRadius 18.0
+    .offset (m/Offset. 0.0 6.0))])
+
+(def app-theme
+  (m/ThemeData
+   .useMaterial3 true
+   .brightness m.Brightness/light
+   .fontFamily font
+   .primaryColor primary
+   .scaffoldBackgroundColor bg
+   .colorScheme (m.ColorScheme/fromSeed
+                 .seedColor primary
+                 .brightness m.Brightness/light)
+   .appBarTheme (m/AppBarTheme
+                 .elevation 0.0
+                 .backgroundColor bg
+                 .foregroundColor ink
+                 .titleTextStyle (mongol-style :size 18.0 :weight m.FontWeight/bold))))

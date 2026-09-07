@@ -1,0 +1,4 @@
+(ns mgl.epub.pagination)
+
+(defn pages [state]
+  (:pages state))

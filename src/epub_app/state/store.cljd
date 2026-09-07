@@ -1,0 +1,196 @@
+(ns epub-app.state.store
+  (:require ["package:shared_preferences/shared_preferences.dart" :as sp]))
+
+(def ^:private pref-font "reader_font_size")
+(def ^:private pref-height "reader_line_height")
+(def ^:private pref-theme "reader_theme")
+(def ^:private pref-mode "reader_writing_mode")
+(def ^:private pref-dir "reader_reading_direction")
+(def ^:private pref-family "reader_font_family")
+
+(defonce app-state
+  (atom
+   {:status :idle
+    :library []
+    :library-filter :all
+    :book nil
+    :library-book nil
+    :chapter nil
+    :pages []
+    :page 0
+    :position nil
+    :pending-position nil
+    :landing :first
+    :selection nil
+    :note-draft ""
+    :bookmarks []
+    :annotations []
+    :search-query ""
+    :search-results []
+    :highlight nil
+    :progress 0.0
+    :settings {:font-size 22.0
+               :line-height 1.8
+               :theme :light
+               :writing-mode :vertical
+               :reading-direction :left-to-right
+               :font-family "OyunQaganTig"}
+    :ui {:menu-visible false
+         :toc-visible false
+         :settings-visible false
+         :search-visible false
+         :bookmarks-visible false
+         :notes-visible false
+         :note-visible false}
+    :error nil}))
+
+(defn- persist-settings! [settings]
+  (-> (.getInstance sp/SharedPreferences)
+      (.then (fn [prefs]
+               (.setDouble prefs pref-font (:font-size settings))
+               (.setDouble prefs pref-height (:line-height settings))
+               (.setString prefs pref-theme (name (:theme settings)))
+               (.setString prefs pref-mode (name (:writing-mode settings)))
+               (.setString prefs pref-dir (name (:reading-direction settings)))
+               (.setString prefs pref-family (:font-family settings))))
+      (.catchError (fn [e]
+                     (dart:core/print (str "settings write failed: " e))
+                     nil)))
+  nil)
+
+(defn load-prefs! []
+  (-> (.getInstance sp/SharedPreferences)
+      (.then (fn [prefs]
+               (swap! app-state update :settings
+                      (fn [s]
+                        (cond-> s
+                          (.containsKey prefs pref-font)
+                          (assoc :font-size (.getDouble prefs pref-font))
+                          (.containsKey prefs pref-height)
+                          (assoc :line-height (.getDouble prefs pref-height))
+                          (.containsKey prefs pref-theme)
+                          (assoc :theme (keyword (.getString prefs pref-theme)))
+                          (.containsKey prefs pref-mode)
+                          (assoc :writing-mode (keyword (.getString prefs pref-mode)))
+                          (.containsKey prefs pref-dir)
+                          (assoc :reading-direction (keyword (.getString prefs pref-dir)))
+                          (.containsKey prefs pref-family)
+                          (assoc :font-family (.getString prefs pref-family)))))))
+      (.catchError (fn [e]
+                     (dart:core/print (str "load prefs failed: " e))
+                     nil))))
+
+(defn set-library! [books]
+  (swap! app-state assoc :library (vec (or books [])) :error nil))
+
+(defn set-library-filter! [f]
+  (swap! app-state assoc :library-filter f))
+
+(defn set-error! [msg]
+  (swap! app-state assoc :error msg :status (if msg :error (:status @app-state))))
+
+(defn clear-error! []
+  (swap! app-state assoc :error nil))
+
+(defn set-status! [status]
+  (swap! app-state assoc :status status))
+
+(defn set-open-book! [library-book book]
+  (swap! app-state assoc
+         :library-book library-book
+         :book book
+         :chapter nil
+         :pages []
+         :page 0
+         :position nil
+         :pending-position nil
+         :selection nil
+         :note-draft ""
+         :highlight nil
+         :progress (or (some-> library-book .-progress) 0.0)
+         :status :book-loaded))
+
+(defn set-landing! [landing]
+  (swap! app-state assoc :landing landing))
+
+(defn set-pending-position! [position]
+  (swap! app-state assoc :pending-position position))
+
+(defn set-chapter! [chapter]
+  (swap! app-state assoc
+         :chapter chapter
+         :pages []
+         :page 0
+         :status :loading-chapter))
+
+(defn set-pages! [pages page]
+  (swap! app-state assoc :pages (vec (or pages [])) :page (or page 0) :status :ready))
+
+(defn set-page! [page]
+  (swap! app-state assoc :page page))
+
+(defn set-position! [position]
+  (swap! app-state assoc :position position))
+
+(defn set-progress! [progress]
+  (swap! app-state assoc :progress (or progress 0.0)))
+
+(defn set-highlight! [highlight]
+  (swap! app-state assoc :highlight highlight))
+
+(defn set-selection! [selection]
+  (swap! app-state assoc :selection selection))
+
+(defn set-note-draft! [text]
+  (swap! app-state assoc :note-draft (or text "")))
+
+(defn update-settings! [k v]
+  (swap! app-state (fn [s]
+                     (-> s
+                         (assoc-in [:settings k] v)
+                         (assoc :pages [] :page 0))))
+  (persist-settings! (:settings @app-state)))
+
+(defn toggle-ui! [k]
+  (swap! app-state update-in [:ui k] not))
+
+(defn set-ui! [k v]
+  (swap! app-state assoc-in [:ui k] v))
+
+(defn hide-chrome! []
+  (swap! app-state assoc :ui {:menu-visible false
+                              :toc-visible false
+                              :settings-visible false
+                              :search-visible false
+                              :bookmarks-visible false
+                              :notes-visible false
+                              :note-visible false}))
+
+(defn close-book! []
+  (swap! app-state assoc
+         :book nil
+         :library-book nil
+         :chapter nil
+         :pages []
+         :page 0
+         :position nil
+         :pending-position nil
+         :selection nil
+         :note-draft ""
+         :bookmarks []
+         :annotations []
+         :search-query ""
+         :search-results []
+         :highlight nil
+         :progress 0.0
+         :status :idle)
+  (hide-chrome!))
+
+(defn set-search! [query results]
+  (swap! app-state assoc :search-query query :search-results (vec (or results []))))
+
+(defn set-bookmarks! [items]
+  (swap! app-state assoc :bookmarks (vec (or items []))))
+
+(defn set-annotations! [items]
+  (swap! app-state assoc :annotations (vec (or items []))))

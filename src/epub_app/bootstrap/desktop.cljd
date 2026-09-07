@@ -1,0 +1,5 @@
+(ns epub-app.bootstrap.desktop
+  (:require [epub-app.bootstrap.ime :as ime]))
+
+(defn init! []
+  (ime/init! "desktop"))

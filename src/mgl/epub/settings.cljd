@@ -1,0 +1,5 @@
+(ns mgl.epub.settings
+  (:require [epub-app.state.store :as store]))
+
+(defn settings []
+  (:settings @store/app-state))

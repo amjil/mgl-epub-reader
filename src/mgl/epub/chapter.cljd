@@ -1,0 +1,4 @@
+(ns mgl.epub.chapter)
+
+(defn current [state]
+  (:chapter state))

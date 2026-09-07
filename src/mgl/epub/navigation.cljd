@@ -1,0 +1,5 @@
+(ns mgl.epub.navigation
+  (:require [epub-app.services.epub-core :as core]))
+
+(defn next-page [] (core/next-page!))
+(defn previous-page [] (core/previous-page!))

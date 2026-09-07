@@ -1,0 +1,215 @@
+(ns epub-app.widgets.library
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            ["dart:io" :as io]
+            [cljd.flutter :as f]
+            [components.menu :as menu]
+            [epub-app.services.epub-core :as core]
+            [epub-app.state.store :as store]
+            [epub-app.theme :as t]
+            [epub-app.widgets.ui :as ui]))
+
+(def ^:private filters
+  [[:all "All"]
+   [:recent "Recent"]
+   [:favorites "Favorites"]
+   [:finished "Finished"]])
+
+(defn- filtered-books [state]
+  (let [books (:library state)]
+    (case (:library-filter state)
+      :favorites (filterv #(.-favorite %) books)
+      :finished (filterv #(.-finished %) books)
+      :recent (vec (take 20 books))
+      (vec books))))
+
+(defn- confirm-delete! [ctx book]
+  (m/showDialog
+   .context ctx
+   .builder
+   (fn [c]
+     (mgl/MongolAlertDialog
+      .title (ui/text "Delete book?" {:size 16.0 :weight m.FontWeight/bold})
+      .content (ui/text (or (.-title book) "") {:size 16.0})
+      .actions
+      [(mgl/MongolTextButton
+        .onPressed (fn [] (.pop (m/Navigator.of c)))
+        .child (ui/text "Cancel" {:color t/ink-muted}))
+       (mgl/MongolTextButton
+        .onPressed (fn []
+                     (.pop (m/Navigator.of c))
+                     (core/remove-book! (.-id book)))
+        .child (ui/text "Delete" {:color t/danger}))]))))
+
+(defn- book-menu [ctx book]
+  (menu/custom-popup-menu
+   {:trigger-builder
+    (fn [show-menu]
+      (m/IconButton
+       .iconSize 18.0
+       .visualDensity m.VisualDensity/compact
+       .padding (m.EdgeInsets/all 2.0)
+       .constraints (m/BoxConstraints .minWidth 28.0 .minHeight 28.0)
+       .style (m/IconButton.styleFrom
+               .tapTargetSize m.MaterialTapTargetSize/shrinkWrap
+               .minimumSize (m/Size. 28.0 28.0)
+               .padding (m.EdgeInsets/all 2.0)
+               .visualDensity m.VisualDensity/compact)
+       .icon (m/Icon m.Icons/more_vert .color t/ink-muted)
+       .onPressed show-menu))
+    :bg-color t/surface
+    :border-radius 16.0
+    :menu-width 280.0
+    :items [{:type :item
+             :title (if (.-favorite book) "Unfavorite" "Favorite")
+             :leading m.Icons/star
+             :leading-color t/gold
+             :on-tap #(core/toggle-favorite! (.-id book) (not (.-favorite book)))}
+            {:type :item
+             :title (if (.-finished book) "Mark unread" "Mark finished")
+             :leading m.Icons/check_circle_outline
+             :leading-color t/primary
+             :on-tap #(core/set-finished! (.-id book) (not (.-finished book)))}
+            {:type :divider}
+            {:type :item
+             :title "Delete"
+             :leading m.Icons/delete_outline
+             :leading-color t/danger
+             :on-tap #(confirm-delete! ctx book)}]}))
+
+(defn- cover-placeholder []
+  (m/Container
+   .width 64.0 .height 96.0
+   .decoration (m/BoxDecoration
+                .color t/primary-soft
+                .borderRadius (m.BorderRadius/circular 8.0))
+   .child (m/Center .child (m/Icon m.Icons/menu_book .color t/primary))))
+
+(defn- cover-thumb [book]
+  (let [path (.-cover book)]
+    (if (and path (.existsSync (io/File. path)))
+      (m/ClipRRect
+       .borderRadius (m.BorderRadius/circular 8.0)
+       .child
+       (m/Image.file
+        (io/File. path)
+        .width 64.0
+        .height 96.0
+        .fit m.BoxFit/cover
+        .errorBuilder (fn [_ _ _] (cover-placeholder))))
+      (cover-placeholder))))
+
+(defn- cover-with-badge [book]
+  (m/Stack
+   .children
+   [(cover-thumb book)
+    (if (.-favorite book)
+      (m/Positioned
+       .right 0.0
+       .bottom 0.0
+       .child (m/Icon m.Icons/star .color t/gold .size 16.0))
+      (m/SizedBox.shrink))]))
+
+(defn- book-card [ctx book]
+  (let [author (or (.-author book) "")]
+    (ui/card-shell
+     (m/Row
+      .crossAxisAlignment m.CrossAxisAlignment/stretch
+      .children
+      [(cover-with-badge book)
+       (ui/gap-h 8)
+       (m/Expanded
+        .child (ui/text (or (.-title book) "Untitled")
+                        {:size 18.0 :weight m.FontWeight/bold :max-lines 1}))
+       (if (seq author)
+         (m/Flexible
+          .child
+          (m/Padding
+           .padding (m.EdgeInsets/only .left 6.0)
+           .child (ui/text author {:size 13.0 :color t/ink-muted :max-lines 1})))
+         (m/SizedBox.shrink))
+       (ui/gap-h 6)
+       (ui/v-progress (.-progress book))
+       (book-menu ctx book)])
+     :width 196.0
+     :on-tap (fn [] (core/open-library-book! (.-id book))))))
+
+(defn- filter-rail [selected]
+  (m/Column
+   .mainAxisSize m.MainAxisSize/min
+   .children
+   (mapv (fn [[id label]]
+           (ui/pill {:label label
+                     :active? (= id selected)
+                     :on-tap #(store/set-library-filter! id)}))
+         filters)))
+
+(defn- library-rail [state]
+  (m/Container
+   .width 72.0
+   .decoration (m/BoxDecoration
+                .color t/surface
+                .border (m/Border .right (m/BorderSide .color t/outline .width 1.0)))
+   .child
+   (m/Column
+    .children
+    [(m/Padding
+      .padding (m.EdgeInsets/fromLTRB 8.0 16.0 8.0 8.0)
+      .child (ui/text "ᠨᠣᠮ" {:size 20.0 :weight m.FontWeight/bold}))
+     (m/Expanded
+      .child
+      (m/SingleChildScrollView
+       .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 8.0)
+       .child (filter-rail (:library-filter state))))
+     (m/Padding
+      .padding (m.EdgeInsets/only .bottom 12.0)
+      .child
+      (m/IconButton
+       .style (m/IconButton.styleFrom
+               .backgroundColor t/primary-soft
+               .foregroundColor t/primary)
+       .icon (m/Icon m.Icons/add)
+       .onPressed (fn [] (core/pick-and-import!))))])))
+
+(defn screen []
+  (f/widget
+   :watch [state store/app-state]
+   :context ctx
+   (m/Scaffold
+    .backgroundColor t/bg
+    .body
+    (m/SafeArea
+     .child
+     (if (empty? (:library state))
+       (m/Row
+        .crossAxisAlignment m.CrossAxisAlignment/stretch
+        .children
+        [(library-rail state)
+         (m/Expanded
+          .child
+          (m/Center
+           .child
+           (m/Row
+            .mainAxisSize m.MainAxisSize/min
+            .children
+            [(m/Icon m.Icons/menu_book_outlined .size 48.0 .color t/ink-muted)
+             (ui/gap-h 16)
+             (ui/text "EPUB" {:size 18.0 :color t/ink-muted})
+             (if (:error state)
+               (m/Padding
+                .padding (m.EdgeInsets/only .left 16.0)
+                .child (ui/text (:error state) {:color t/danger}))
+               (m/SizedBox.shrink))])))])
+       (let [books (filtered-books state)]
+         (m/Row
+          .crossAxisAlignment m.CrossAxisAlignment/stretch
+          .children
+          [(library-rail state)
+           (m/Expanded
+            .child
+            (if (empty? books)
+              (ui/empty-state m.Icons/filter_none "No books in this filter")
+              (m/ListView
+               .scrollDirection m.Axis/horizontal
+               .padding (m.EdgeInsets/fromLTRB 12.0 8.0 20.0 8.0)
+               .children (vec (map #(book-card ctx %) books)))))])))))))

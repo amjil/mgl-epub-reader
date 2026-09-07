@@ -1,0 +1,11 @@
+(ns mgl.epub.gestures
+  "Gesture mapping. Mongolian vertical reading may reverse swipe direction.")
+
+(defn handle-tap [on-tap]
+  (fn [_] (on-tap)))
+
+(defn handle-swipe [dir next! prev! rtl?]
+  (if (or (and rtl? (= dir :left))
+          (and (not rtl?) (= dir :right)))
+    (prev!)
+    (next!)))

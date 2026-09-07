@@ -1,0 +1,4 @@
+(ns epub-app.lifecycle)
+
+(defn wrap [child]
+  child)

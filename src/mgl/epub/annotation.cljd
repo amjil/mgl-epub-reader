@@ -1,0 +1,18 @@
+(ns mgl.epub.annotation
+  (:require [epub-app.services.epub-core :as core]
+            [epub-app.state.store :as store]))
+
+(defn items []
+  (:annotations @store/app-state))
+
+(defn highlight []
+  (core/add-highlight!))
+
+(defn underline []
+  (core/add-underline!))
+
+(defn note [text]
+  (core/save-note! text))
+
+(defn remove [id]
+  (core/remove-annotation! id))

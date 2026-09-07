@@ -1,0 +1,17 @@
+(ns epub-app.platform
+  "Desktop vs mobile detection for shell / bootstrap branching."
+  (:require ["package:flutter/foundation.dart" :as foundation :refer [kIsWeb]]))
+
+(defn mobile?
+  []
+  (when-not kIsWeb
+    (let [p foundation/defaultTargetPlatform]
+      (or (= p foundation.TargetPlatform/android)
+          (= p foundation.TargetPlatform/iOS)))))
+
+(defn desktop?
+  []
+  (or kIsWeb (not (mobile?))))
+
+(defn web? []
+  kIsWeb)

@@ -1,0 +1,437 @@
+(ns epub-app.widgets.reader
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            ["package:mgl_epub_reader/mgl_epub_reader.dart" :as epub]
+            [cljd.flutter :as f]
+            [epub-app.services.epub-core :as core]
+            [epub-app.state.store :as store]
+            [epub-app.theme :as t]
+            [epub-app.widgets.ui :as ui]))
+
+(defn- toc-tile [item]
+  (mgl/MongolListTile
+   .title (ui/text (.-title item) {:size 16.0})
+   .onTap (fn [] (core/open-toc-href! (.-href item)))))
+
+(defn- toc-list [items]
+  (m/ListView
+   .scrollDirection m.Axis/horizontal
+   .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+   .children
+   (vec (mapcat (fn [item]
+                  (cons (toc-tile item)
+                        (map toc-tile (.-children item))))
+                items))))
+
+(defn- icon-col [icons]
+  (m/Column
+   .mainAxisSize m.MainAxisSize/min
+   .children icons))
+
+(defn- left-bar [book]
+  (m/Positioned
+   .top 0.0 .bottom 0.0 .left 0.0 .width 56.0
+   .child
+   (m/Material
+    .color (t/fade t/surface 0.96)
+    .child
+    (m/SafeArea
+     .right false
+     .child
+     (m/Column
+      .children
+      [(m/IconButton
+        .icon (m/Icon m.Icons/arrow_back_rounded)
+        .onPressed (fn [] (core/close-book!)))
+       (m/Expanded
+        .child
+        (m/Padding
+         .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
+         .child
+         (ui/text (or (some-> book .-title) "")
+                  {:size 16.0 :weight m.FontWeight/bold :max-lines 1})))
+       (icon-col
+        [(m/IconButton
+          .icon (m/Icon m.Icons/list)
+          .onPressed (fn [] (store/toggle-ui! :toc-visible)))
+         (m/IconButton
+          .icon (m/Icon m.Icons/bookmarks_outlined)
+          .onPressed (fn [] (store/toggle-ui! :bookmarks-visible)))
+         (m/IconButton
+          .icon (m/Icon m.Icons/notes_outlined)
+          .onPressed (fn [] (store/toggle-ui! :notes-visible)))
+         (m/IconButton
+          .icon (m/Icon m.Icons/bookmark_add_outlined)
+          .onPressed (fn [] (core/add-bookmark!)))
+         (m/IconButton
+          .icon (m/Icon m.Icons/search)
+          .onPressed (fn [] (store/toggle-ui! :search-visible)))
+         (m/IconButton
+          .icon (m/Icon m.Icons/tune)
+          .onPressed (fn [] (store/toggle-ui! :settings-visible)))])])))))
+
+(defn- right-bar [state]
+  (m/Positioned
+   .top 0.0 .bottom 0.0 .right 0.0 .width 56.0
+   .child
+   (m/Material
+    .color (t/fade t/surface 0.96)
+    .child
+    (m/SafeArea
+     .left false
+     .child
+     (m/Column
+      .children
+      [(m/IconButton
+        .icon (m/Icon m.Icons/chevron_left)
+        .onPressed (fn [] (core/previous-page!)))
+       (m/Expanded
+        .child
+        (m/Padding
+         .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
+         .child
+         (ui/text
+          (str (or (some-> (:chapter state) .-title) "")
+               "  "
+               (inc (:page state))
+               " / "
+               (count (:pages state)))
+          {:size 13.0 :color t/ink-muted :max-lines 1})))
+       (m/IconButton
+        .icon (m/Icon m.Icons/chevron_right)
+        .onPressed (fn [] (core/next-page!)))])))))
+
+(defn- setting-pills [value options on-pick]
+  (m/Column
+   .mainAxisSize m.MainAxisSize/min
+   .children
+   (mapv (fn [[id label]]
+           (ui/pill {:label label
+                     :active? (= id value)
+                     :on-tap #(on-pick id)}))
+         options)))
+
+(defn- settings-panel [settings]
+  (ui/side-sheet
+   :right 280.0
+   (m/SafeArea
+    .child
+    (m/SingleChildScrollView
+     .scrollDirection m.Axis/horizontal
+     .padding (m.EdgeInsets/all 16.0)
+     .child
+     (m/Row
+      .crossAxisAlignment m.CrossAxisAlignment/center
+      .children
+      [(ui/text "Font size" {:size 13.0 :color t/ink-muted})
+       (ui/gap-h 8)
+       (ui/v-slider 14.0 36.0 (:font-size settings)
+                    (fn [v] (store/update-settings! :font-size v)))
+       (ui/gap-h 16)
+       (ui/text "Line height" {:size 13.0 :color t/ink-muted})
+       (ui/gap-h 8)
+       (ui/v-slider 1.2 2.4 (:line-height settings)
+                    (fn [v] (store/update-settings! :line-height v)))
+       (ui/gap-h 16)
+       (setting-pills (:writing-mode settings)
+                      [[:vertical "vertical"]
+                       [:horizontal "horizontal"]]
+                      #(store/update-settings! :writing-mode %))
+       (ui/gap-h 12)
+       (setting-pills (:reading-direction settings)
+                      [[:left-to-right "LTR"]
+                       [:right-to-left "RTL"]]
+                      #(store/update-settings! :reading-direction %))
+       (ui/gap-h 12)
+       (setting-pills (:font-family settings)
+                      [["OyunQaganTig" "Oyun"]
+                       ["MongolianBaiZheng" "BaiZheng"]]
+                      #(store/update-settings! :font-family %))
+       (ui/gap-h 12)
+       (setting-pills (:theme settings)
+                      [[:light "light"]
+                       [:sepia "sepia"]
+                       [:dark "dark"]
+                       [:black "black"]]
+                      #(store/update-settings! :theme %))])))))
+
+(defn- hit-tile [hit]
+  (mgl/MongolListTile
+   .title (ui/text (.-snippet hit) {:size 14.0 :max-lines 2})
+   .onTap (fn [] (core/go-to-search-hit! hit))))
+
+(defn- search-panel [results]
+  (ui/side-sheet
+   :right 320.0
+   (m/SafeArea
+    .child
+    (m/Row
+     .children
+     [(m/SizedBox
+       .width 72.0
+       .child
+       (m/Padding
+        .padding (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 12.0)
+        .child
+        (mgl/MongolTextField
+         .decoration (m/InputDecoration
+                      .hintText "Search"
+                      .border m.InputBorder/none
+                      .hintStyle (t/mongol-style :size 16.0 :color t/ink-faint))
+         .style (t/mongol-style :size 16.0)
+         .onSubmitted (fn [q] (core/search! q)))))
+      (m/Expanded
+       .child
+       (m/ListView
+        .scrollDirection m.Axis/horizontal
+        .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+        .children (vec (map hit-tile results))))]))))
+
+(defn- bookmark-tile [bm]
+  (mgl/MongolListTile
+   .title (ui/text (or (.-title bm) "Bookmark") {:size 15.0 :max-lines 1})
+   .onTap (fn []
+            (store/set-ui! :bookmarks-visible false)
+            (core/go-to-position! (.-position bm)))
+   .trailing
+   (m/IconButton
+    .icon (m/Icon m.Icons/delete_outline .color t/danger)
+    .onPressed (fn [] (core/remove-bookmark! (.-id bm))))))
+
+(defn- bookmarks-panel [bookmarks]
+  (ui/side-sheet
+   :right 300.0
+   (m/SafeArea
+    .child
+    (m/Row
+     .children
+     [(m/Padding
+       .padding (m.EdgeInsets/fromLTRB 12.0 16.0 8.0 16.0)
+       .child (ui/text "Bookmarks" {:size 16.0 :weight m.FontWeight/bold}))
+      (m/Expanded
+       .child
+       (if (empty? bookmarks)
+         (ui/empty-state m.Icons/bookmarks_outlined "No bookmarks")
+         (m/ListView
+          .scrollDirection m.Axis/horizontal
+          .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+          .children (vec (map bookmark-tile bookmarks)))))]))))
+
+(defn- note-tile [ann]
+  (mgl/MongolListTile
+   .title (ui/text (or (.-note ann) "Note") {:size 15.0 :max-lines 2})
+   .onTap (fn []
+            (store/set-ui! :notes-visible false)
+            (core/go-to-position! (.-start ann)))
+   .trailing
+   (m/IconButton
+    .icon (m/Icon m.Icons/delete_outline .color t/danger)
+    .onPressed (fn [] (core/remove-annotation! (.-id ann))))))
+
+(defn- notes-panel [annotations]
+  (ui/side-sheet
+   :right 300.0
+   (m/SafeArea
+    .child
+    (m/Row
+     .children
+     [(m/Padding
+       .padding (m.EdgeInsets/fromLTRB 12.0 16.0 8.0 16.0)
+       .child (ui/text "Notes" {:size 16.0 :weight m.FontWeight/bold}))
+      (m/Expanded
+       .child
+       (if (empty? annotations)
+         (ui/empty-state m.Icons/notes_outlined "No notes")
+         (m/ListView
+          .scrollDirection m.Axis/horizontal
+          .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+          .children (vec (map note-tile annotations)))))]))))
+
+(defn- mongol-action [label on-pressed]
+  (mgl/MongolTextButton
+   .onPressed on-pressed
+   .child (ui/text label {:size 13.0 :color t/primary})))
+
+(defn- selection-toolbar []
+  (m/Positioned
+   .bottom 24.0 .left 16.0 .right 16.0
+   .child
+   (m/Material
+    .elevation 8.0
+    .color t/surface
+    .borderRadius (m.BorderRadius/circular 12.0)
+    .child
+    (m/Padding
+     .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 8.0)
+     .child
+     (m/SingleChildScrollView
+      .scrollDirection m.Axis/horizontal
+      .child
+      (m/Row
+       .mainAxisSize m.MainAxisSize/min
+       .children
+       [(mongol-action "Copy" (fn [] (core/copy-selection!)))
+        (mongol-action "Highlight" (fn [] (core/add-highlight!)))
+        (mongol-action "Underline" (fn [] (core/add-underline!)))
+        (mongol-action "Note" (fn [] (core/begin-note!)))
+        (mongol-action "Search" (fn [] (core/search-from-selection!)))
+        (mongol-action "Share" (fn [] (core/share-selection!)))]))))))
+
+(defn- note-panel [draft]
+  (m/Positioned
+   .left 24.0 .right 24.0 .bottom 48.0 .height 260.0
+   .child
+   (m/Material
+    .elevation 10.0
+    .color t/surface
+    .borderRadius (m.BorderRadius/circular 12.0)
+    .child
+    (m/Padding
+     .padding (m.EdgeInsets/all 16.0)
+     .child
+     (m/Row
+      .crossAxisAlignment m.CrossAxisAlignment/stretch
+      .children
+      [(ui/text "Note" {:size 16.0 :weight m.FontWeight/bold})
+       (ui/gap-h 12)
+       (m/Expanded
+        .child
+        (mgl/MongolTextField
+         .maxLines nil
+         .expands true
+         .decoration (m/InputDecoration
+                      .hintText "Write a note"
+                      .border m.InputBorder/none
+                      .hintStyle (t/mongol-style :size 16.0 :color t/ink-faint))
+         .style (t/mongol-style :size 16.0)
+         .onChanged (fn [txt] (store/set-note-draft! txt))
+         .onSubmitted (fn [txt] (core/save-note! txt))))
+       (ui/gap-h 8)
+       (m/Column
+        .mainAxisAlignment m.MainAxisAlignment/end
+        .children
+        [(mongol-action "Cancel" (fn [] (core/clear-selection!)))
+         (mongol-action "Save" (fn [] (core/save-note! draft)))])])))))
+
+(defn- overlay [state]
+  (let [ui-state (:ui state)
+        book (:book state)
+        settings (:settings state)
+        menu? (:menu-visible ui-state)]
+    (m/Stack
+     .children
+     (filterv some?
+              [(when menu? (left-bar book))
+               (when (and menu? (seq (:pages state)))
+                 (right-bar state))
+               (when (:toc-visible ui-state)
+                 (m/Positioned
+                  .top 0.0 .bottom 0.0
+                  .left (if menu? 56.0 0.0)
+                  .width 240.0
+                  .child
+                  (m/Material
+                   .elevation 8.0
+                   .color t/surface
+                   .child (toc-list (or (some-> book .-toc) [])))))
+               (when (:settings-visible ui-state) (settings-panel settings))
+               (when (:search-visible ui-state) (search-panel (:search-results state)))
+               (when (:bookmarks-visible ui-state) (bookmarks-panel (:bookmarks state)))
+               (when (:notes-visible ui-state) (notes-panel (:annotations state)))
+               (when (:selection state) (selection-toolbar))
+               (when (:note-visible ui-state) (note-panel (:note-draft state)))]))))
+
+(defn- needs-paginate? [state]
+  (and (:chapter state)
+       (empty? (:pages state))
+       (not= (:status state) :paginating)
+       (not= (:status state) :error)))
+
+(defn- schedule-paginate! [state size]
+  (when (and (needs-paginate? state)
+             (pos? (.-width size))
+             (pos? (.-height size)))
+    (.addPostFrameCallback
+     m.WidgetsBinding/instance
+     (fn [_]
+       (when (needs-paginate? @store/app-state)
+         (core/paginate-current! size))))))
+
+(defn- page-widget [state size]
+  (let [pages (:pages state)
+        page (:page state)]
+    (if (empty? pages)
+      (m/Center .child (m/CircularProgressIndicator.))
+      (let [cur (nth pages page)
+            prev (when (pos? page) (nth pages (dec page)))
+            nxt (when (< page (dec (count pages))) (nth pages (inc page)))
+            view (fn [pg]
+                   (epub/MglPageView.
+                    .page pg
+                    .config (core/layout-config size)
+                    .colors (core/theme-colors)
+                    .loadImage core/load-image
+                    .annotations (:annotations state)
+                    .selection (:selection state)
+                    .highlight (:highlight state)
+                    .onBlockLongPress (fn [block] (core/select-block! block))
+                    .onLinkTap (fn [href] (core/open-link! href))))]
+        (m/Stack
+         .fit m.StackFit/expand
+         .children
+         (filterv some?
+                  [(when prev (m/Offstage .offstage true .child (view prev)))
+                   (view cur)
+                   (when nxt (m/Offstage .offstage true .child (view nxt)))]))))))
+
+(defn screen []
+  (f/widget
+   :watch [state store/app-state]
+   (m/Scaffold
+    .backgroundColor t/bg
+    .body
+    (m/LayoutBuilder
+     .builder
+     (fn [_ constraints]
+       (let [size (m/Size. (.-maxWidth constraints) (.-maxHeight constraints))
+             rtl? (= :right-to-left (:reading-direction (:settings state)))]
+         (schedule-paginate! state size)
+         (m/GestureDetector
+          .onTap (fn []
+                   (store/set-highlight! nil)
+                   (if (:selection state)
+                     (core/clear-selection!)
+                     (store/toggle-ui! :menu-visible)))
+          .onDoubleTap (fn [] (core/add-bookmark!))
+          .onHorizontalDragEnd
+          (fn [details]
+            (let [v (or (.-primaryVelocity details) 0.0)]
+              (cond
+                rtl?
+                (cond
+                  (> v 200.0) (core/next-page!)
+                  (< v -200.0) (core/previous-page!))
+                :else
+                (cond
+                  (> v 200.0) (core/previous-page!)
+                  (< v -200.0) (core/next-page!)))))
+          .child
+          (m/Stack
+           .children
+           [(page-widget state size)
+            (m/Positioned
+             .top 0.0 .bottom 0.0 .right 0.0 .width 4.0
+             .child (ui/v-progress (or (:progress state) 0.0)))
+            (overlay state)
+            (if (:error state)
+              (m/Positioned
+               .bottom 24.0 .left 24.0 .right 24.0
+               .child
+               (m/Material
+                .color t/danger
+                .child
+                (m/Padding
+                 .padding (m.EdgeInsets/all 12.0)
+                 .child
+                 (ui/text (:error state) {:color m.Colors/white}))))
+              (m/SizedBox.shrink))]))))))))

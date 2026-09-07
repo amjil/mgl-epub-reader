@@ -1,0 +1,37 @@
+(ns epub-app.main
+  (:require ["package:flutter/material.dart" :as m]
+            [cljd.flutter :as f]
+            [epub-app.platform :as platform]
+            [epub-app.bootstrap.desktop :as desktop-boot]
+            [epub-app.bootstrap.mobile :as mobile-boot]
+            [epub-app.desktop :as desktop]
+            [epub-app.mobile :as mobile]
+            [epub-app.services.epub-core :as epub]
+            [epub-app.state.store :as store]
+            [epub-app.lifecycle :as life]))
+
+(defn main []
+  (m/WidgetsFlutterBinding.ensureInitialized)
+
+  (try
+    (if (platform/desktop?)
+      (await (desktop-boot/init!))
+      (mobile-boot/init!))
+    (catch Exception e
+      (dart:core/print (str "bootstrap failed: " e))))
+
+  (try
+    (await (store/load-prefs!))
+    (catch Exception e
+      (dart:core/print (str "load prefs failed: " e))))
+
+  (try
+    (await (epub/init!))
+    (catch Exception e
+      (dart:core/print (str "epub-core init failed: " e))))
+
+  (f/run
+   (life/wrap
+    (if (platform/desktop?)
+      (desktop/app)
+      (mobile/app)))))

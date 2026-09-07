@@ -1,0 +1,12 @@
+(ns mgl.epub.bookmark
+  (:require [epub-app.services.epub-core :as core]
+            [epub-app.state.store :as store]))
+
+(defn items []
+  (:bookmarks @store/app-state))
+
+(defn add []
+  (core/add-bookmark!))
+
+(defn remove [id]
+  (core/remove-bookmark! id))

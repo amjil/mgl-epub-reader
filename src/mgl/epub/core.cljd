@@ -1,0 +1,10 @@
+(ns mgl.epub.core
+  "Public ClojureDart operations around the EPUB engine."
+  (:require [epub-app.services.epub-core :as core]
+            [epub-app.state.store :as store]))
+
+(defn book []
+  (:book @store/app-state))
+
+(defn chapter [chapter-id]
+  (core/open-chapter! chapter-id))

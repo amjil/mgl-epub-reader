@@ -1,0 +1,4 @@
+(ns mgl.epub.toc)
+
+(defn items [book]
+  (when book (vec (.-toc book))))
