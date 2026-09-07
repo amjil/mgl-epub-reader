@@ -1,4 +1,4 @@
-(ns mgl.epub.core
+(ns epub.core.core
   "Public ClojureDart operations around the EPUB engine."
   (:require [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]))

@@ -1,4 +1,4 @@
-(ns mgl.epub.annotation
+(ns epub.core.annotation
   (:require [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]))
 

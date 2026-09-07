@@ -1,4 +1,4 @@
-(ns mgl.epub.gestures
+(ns epub.core.gestures
   "Gesture mapping. Mongolian vertical reading may reverse swipe direction.")
 
 (defn handle-tap [on-tap]

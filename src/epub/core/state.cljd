@@ -1,4 +1,4 @@
-(ns mgl.epub.state
+(ns epub.core.state
   (:require [epub-app.state.store :as store]))
 
 (def reader-state store/app-state)

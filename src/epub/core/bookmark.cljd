@@ -1,4 +1,4 @@
-(ns mgl.epub.bookmark
+(ns epub.core.bookmark
   (:require [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]))
 

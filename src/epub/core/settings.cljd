@@ -1,4 +1,4 @@
-(ns mgl.epub.settings
+(ns epub.core.settings
   (:require [epub-app.state.store :as store]))
 
 (defn settings []

@@ -1,4 +1,4 @@
-(ns mgl.epub.search
+(ns epub.core.search
   (:require [epub-app.services.epub-core :as core]))
 
 (defn search [query]
