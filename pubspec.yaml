@@ -1,0 +1,68 @@
+name: mgl_epub_reader
+description: Mongolian EPUB reader engine — Flutter + ClojureDart.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.1 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.9
+  mongol: ^9.2.1
+  mongol_code: ^1.0.5
+  archive: ^4.0.7
+  xml: ^6.5.0
+  html: ^0.15.6
+  path: ^1.9.1
+  path_provider: ^2.1.6
+  shared_preferences: ^2.5.5
+  file_selector: ^1.1.0
+  uuid: ^4.6.0
+  http: ^1.6.0
+  crypto: ^3.0.6
+  drift: ^2.34.3
+  drift_flutter: ^0.3.1
+  sqlite3_flutter_libs: ^0.6.0+eol
+  mgl_editor_core:
+    path: ../mgl-richtext-editor/packages/mgl_editor_core
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  drift_dev: ^2.22.1
+  build_runner: ^2.4.13
+
+dependency_overrides:
+  device_info_plus: 12.2.0
+
+hooks:
+  user_defines:
+    sqlite3:
+      source: system
+      name: sqlite3
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/next.zip
+    - assets/fst/dict.bin
+    - assets/fst/dict.idx
+    - assets/fst/keys.json
+    - assets/fst/lists.bin
+    - assets/fst/lists.idx
+    - assets/fst/words.fst
+    - assets/fst/token_table.bin
+    - assets/fonts/OyunQaganTig.ttf
+    - assets/fonts/MongolianBaiZheng.ttf
+
+  fonts:
+    - family: OyunQaganTig
+      fonts:
+        - asset: assets/fonts/OyunQaganTig.ttf
+    - family: MongolianBaiZheng
+      fonts:
+        - asset: assets/fonts/MongolianBaiZheng.ttf
