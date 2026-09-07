@@ -63,55 +63,65 @@
                          epub.ReadingDirection/rightToLeft
                          epub.ReadingDirection/leftToRight))))
 
+(defn viewport-key [size]
+  (str (.toStringAsFixed (.-width size) 1)
+       "x"
+       (.toStringAsFixed (.-height size) 1)))
+
 (defn- persist-progress! []
   (let [{:keys [library-book chapter pages page]} @store/app-state]
-    (when (and library-book chapter (seq pages))
+    (when (and library-book chapter (seq pages) (< page (count pages)))
       (let [cur (nth pages page)
             total (count pages)
             prog (.progressFor ^epub/MglEpubEngineImpl (.-engine (bridge))
                                .chapterId (.-id chapter)
                                .pageIndex page
                                .pageCount total)]
-        (.saveProgress (bridge)
-                       (epub/ReadingProgress.
-                        .bookId (.-id library-book)
-                        .chapterId (.-id chapter)
-                        .blockId (.-blockId (.-start cur))
-                        .offset (.-offset (.-start cur))
-                        .progress prog
-                        .updatedAt (dart:core/DateTime.now)))
+        (await (.saveProgress (bridge)
+                              (epub/ReadingProgress.
+                               .bookId (.-id library-book)
+                               .chapterId (.-id chapter)
+                               .blockId (.-blockId (.-start cur))
+                               .offset (.-offset (.-start cur))
+                               .progress prog
+                               .updatedAt (dart:core/DateTime.now))))
         (store/set-progress! prog)))))
 
 (defn paginate-current! [size]
-  (let [{:keys [chapter pending-position landing position]} @store/app-state]
+  (let [chapter (:chapter @store/app-state)]
     (when chapter
-      (store/set-status! :paginating)
-      (try
-        (let [pages (await (.paginate (bridge) (.-id chapter) (layout-config size)))
-              saved (when-let [lb (:library-book @store/app-state)]
-                      (await (.loadProgress (bridge) (.-id lb))))
-              ch-id (.-id chapter)
-              idx (cond
-                    (and pending-position (= (.-chapterId pending-position) ch-id))
-                    (page-index-for pages pending-position)
+      (let [ch-id (.-id chapter)
+            gen (store/begin-paginate! (viewport-key size))]
+        (try
+          (let [pages (await (.paginate (bridge) ch-id (layout-config size)))]
+            (when (store/paginate-matches? gen ch-id)
+              (let [{:keys [pending-position landing position]} @store/app-state
+                    saved (when-let [lb (:library-book @store/app-state)]
+                            (await (.loadProgress (bridge) (.-id lb))))]
+                (when (store/paginate-matches? gen ch-id)
+                  (let [idx (cond
+                              (and pending-position (= (.-chapterId pending-position) ch-id))
+                              (page-index-for pages pending-position)
 
-                    (and position (= (.-chapterId position) ch-id))
-                    (page-index-for pages position)
+                              (and position (= (.-chapterId position) ch-id))
+                              (page-index-for pages position)
 
-                    (= landing :last)
-                    (max 0 (dec (count pages)))
+                              (= landing :last)
+                              (max 0 (dec (count pages)))
 
-                    (and saved (= (.-chapterId saved) ch-id))
-                    (page-index-for pages (.-position saved))
+                              (and saved (= (.-chapterId saved) ch-id))
+                              (page-index-for pages (.-position saved))
 
-                    :else 0)]
-          (store/set-pending-position! nil)
-          (store/set-pages! pages idx)
-          (when (seq pages)
-            (store/set-position! (.-start (nth pages idx)))
-            (persist-progress!)))
-        (catch Exception e
-          (store/set-error! (str e)))))))
+                              :else 0)]
+                    (store/set-pending-position! nil)
+                    (store/set-pages! pages idx)
+                    (when (seq pages)
+                      (let [safe (min idx (max 0 (dec (count pages))))]
+                        (store/set-position! (.-start (nth pages safe)))
+                        (await (persist-progress!)))))))))
+          (catch Exception e
+            (when (store/paginate-matches? gen ch-id)
+              (store/set-error! (str e)))))))))
 
 (defn open-chapter!
   ([chapter-id] (open-chapter! chapter-id :first))
@@ -153,29 +163,37 @@
     (when (and (pos? n) (>= page 0) (< page n))
       (store/set-page! page)
       (store/set-position! (.-start (nth pages page)))
-      (persist-progress!))))
+      (await (persist-progress!)))))
 
 (defn next-page! []
   (let [{:keys [page pages chapter]} @store/app-state]
-    (cond
-      (< page (dec (count pages)))
-      (go-to-page! (inc page))
+    (when chapter
+      (cond
+        (empty? pages)
+        nil
 
-      :else
-      (when-let [next (.nextChapter ^epub/MglEpubEngineImpl (.-engine (bridge))
-                                    (.-id chapter))]
-        (await (open-chapter! (.-id next) :first))))))
+        (< page (dec (count pages)))
+        (go-to-page! (inc page))
+
+        :else
+        (when-let [nxt (.nextChapter ^epub/MglEpubEngineImpl (.-engine (bridge))
+                                     (.-id chapter))]
+          (await (open-chapter! (.-id nxt) :first)))))))
 
 (defn previous-page! []
-  (let [{:keys [page chapter]} @store/app-state]
-    (cond
-      (pos? page)
-      (go-to-page! (dec page))
+  (let [{:keys [page pages chapter]} @store/app-state]
+    (when chapter
+      (cond
+        (empty? pages)
+        nil
 
-      :else
-      (when-let [prev (.previousChapter ^epub/MglEpubEngineImpl (.-engine (bridge))
-                                        (.-id chapter))]
-        (await (open-chapter! (.-id prev) :last))))))
+        (pos? page)
+        (go-to-page! (dec page))
+
+        :else
+        (when-let [prev (.previousChapter ^epub/MglEpubEngineImpl (.-engine (bridge))
+                                         (.-id chapter))]
+          (await (open-chapter! (.-id prev) :last)))))))
 
 (defn go-to-position! [position]
   (store/set-pending-position! position)
@@ -193,10 +211,23 @@
 
       :else nil)))
 
+(defn- href-fragment [href]
+  (when href
+    (let [i (.indexOf ^String href "#")]
+      (when (>= i 0)
+        (let [frag (.substring ^String href (inc i))]
+          (when (seq frag) frag))))))
+
 (defn open-toc-href! [href]
   (when-let [ch (.chapterByHref (bridge) href)]
     (store/hide-chrome!)
-    (await (open-chapter! (.-id ch) :first))))
+    (if-let [frag (href-fragment href)]
+      (await (go-to-position!
+              (epub/ReaderPosition.
+               .chapterId (.-id ch)
+               .blockId frag
+               .offset 0)))
+      (await (open-chapter! (.-id ch) :first)))))
 
 (defn open-link! [href]
   (when (and href
@@ -229,6 +260,7 @@
 (defn go-to-search-hit! [hit]
   (store/set-highlight!
    (epub/ReaderSelectionRange.
+    .chapterId (.-chapterId hit)
     .blockId (.-blockId hit)
     .start (.-offset hit)
     .end (+ (.-offset hit) (.-length hit))))

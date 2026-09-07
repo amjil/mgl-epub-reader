@@ -3,6 +3,7 @@ import 'package:mongol/mongol.dart';
 
 import '../model/document.dart';
 import '../model/position.dart';
+import 'block_text_style.dart';
 import 'page.dart';
 
 abstract class Paginator {
@@ -172,51 +173,20 @@ List<_Item> _flatten(MglDocument document) {
   return out;
 }
 
-double _headingScale(int? level) {
-  return switch (level) {
-    1 => 1.6,
-    2 => 1.4,
-    3 => 1.25,
-    4 => 1.1,
-    5 => 1.0,
-    6 => 0.95,
-    _ => 1.0,
-  };
-}
-
 TextSpan _spanFor(MglBlock block, ReaderLayoutConfig config) {
   final children = <InlineSpan>[];
   for (final span in block.spans) {
     children.add(
       TextSpan(
         text: span.text,
-        style: _textStyle(span, block, config),
+        style: blockTextStyle(block, config, span: span),
       ),
     );
   }
   if (children.isEmpty) {
-    return TextSpan(text: '', style: _textStyle(null, block, config));
+    children.add(TextSpan(text: '', style: blockTextStyle(block, config)));
   }
-  return TextSpan(children: children, style: _textStyle(null, block, config));
-}
-
-TextStyle _textStyle(
-  MglTextSpan? span,
-  MglBlock block,
-  ReaderLayoutConfig config,
-) {
-  var size = config.fontSize * _headingScale(block.headingLevel);
-  if (span?.style.fontSize != null) size = span!.style.fontSize!;
-  return TextStyle(
-    fontSize: size,
-    height: config.lineHeight,
-    fontFamily: span?.style.fontFamily ?? config.fontFamily ?? 'OyunQaganTig',
-    fontWeight: (span?.style.bold ?? false) ? FontWeight.bold : FontWeight.normal,
-    fontStyle: (span?.style.italic ?? false) ? FontStyle.italic : FontStyle.normal,
-    decoration: (span?.style.underline ?? false)
-        ? TextDecoration.underline
-        : TextDecoration.none,
-  );
+  return TextSpan(children: children);
 }
 
 _Measured _measure(_Item item, ReaderLayoutConfig config, double remaining) {

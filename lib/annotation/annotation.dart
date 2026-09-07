@@ -80,6 +80,17 @@ class Annotation {
   }
 }
 
+/// Block ids restart per chapter (`block-0001`, …), so chapter must be checked.
+bool annotationAppliesTo(
+  Annotation annotation, {
+  required String chapterId,
+  required String blockId,
+}) {
+  if (annotation.chapterId != chapterId) return false;
+  return annotation.start.blockId == blockId ||
+      annotation.end.blockId == blockId;
+}
+
 class Bookmark {
   const Bookmark({
     required this.id,

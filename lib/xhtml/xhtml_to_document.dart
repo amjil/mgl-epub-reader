@@ -26,6 +26,11 @@ class XhtmlToDocument {
     return 'block-${_seq.toString().padLeft(4, '0')}';
   }
 
+  String _blockId(html_dom.Element node) {
+    final id = node.id.trim();
+    return id.isEmpty ? _nextId() : id;
+  }
+
   MglDocument transform(XhtmlDocument document) {
     _seq = 0;
     final body = document.body;
@@ -64,7 +69,7 @@ class XhtmlToDocument {
         flushInline();
         out.add(
           MglBlock.heading(
-            id: _nextId(),
+            id: _blockId(node),
             level: int.parse(tag.substring(1)),
             spans: _inlines(node, MglTextStyle.empty),
             style: blockStyleFromCss(css),
@@ -84,7 +89,7 @@ class XhtmlToDocument {
           flushInline();
           out.add(
             MglBlock.code(
-              id: _nextId(),
+              id: _blockId(node),
               spans: [MglTextSpan(text: node.text)],
             ),
           );
@@ -93,7 +98,7 @@ class XhtmlToDocument {
             flushInline();
             out.add(
               MglBlock.code(
-                id: _nextId(),
+                id: _blockId(node),
                 spans: [MglTextSpan(text: node.text)],
               ),
             );
@@ -106,7 +111,7 @@ class XhtmlToDocument {
           flushInline();
           out.add(
             MglBlock.listItem(
-              id: _nextId(),
+              id: _blockId(node),
               spans: _inlines(node, MglTextStyle.empty),
               children: _nestedBlocks(node),
             ),
@@ -118,7 +123,7 @@ class XhtmlToDocument {
           if (image != null) out.add(image);
         case 'hr':
           flushInline();
-          out.add(MglBlock.horizontalRule(id: _nextId()));
+          out.add(MglBlock.horizontalRule(id: _blockId(node)));
         case 'br':
           inlineBuf.add(const MglTextSpan(text: '\n'));
         case 'div':
@@ -164,7 +169,7 @@ class XhtmlToDocument {
       if (type == MglBlockType.quote) {
         blocks.add(
           MglBlock.quote(
-            id: _nextId(),
+            id: _blockId(node),
             spans: spans,
             style: blockStyleFromCss(css),
           ),
@@ -172,7 +177,7 @@ class XhtmlToDocument {
       } else {
         blocks.add(
           MglBlock.paragraph(
-            id: _nextId(),
+            id: _blockId(node),
             spans: spans,
             style: blockStyleFromCss(css),
           ),
@@ -186,7 +191,7 @@ class XhtmlToDocument {
     if (blocks.isEmpty && images.isEmpty) {
       blocks.add(
         MglBlock.paragraph(
-          id: _nextId(),
+          id: _blockId(node),
           spans: spans.isEmpty ? [const MglTextSpan(text: '')] : spans,
           style: blockStyleFromCss(css),
         ),
@@ -201,13 +206,13 @@ class XhtmlToDocument {
       if (child.localName != 'li') continue;
       items.add(
         MglBlock.listItem(
-          id: _nextId(),
+          id: _blockId(child),
           spans: _inlines(child, MglTextStyle.empty),
           children: _nestedBlocks(child),
         ),
       );
     }
-    return MglBlock.list(id: _nextId(), children: items, ordered: ordered);
+    return MglBlock.list(id: _blockId(node), children: items, ordered: ordered);
   }
 
   List<MglBlock> _nestedBlocks(html_dom.Element li) {
@@ -230,7 +235,7 @@ class XhtmlToDocument {
       if (text.isEmpty) continue;
       blocks.add(
         MglBlock.paragraph(
-          id: _nextId(),
+          id: _blockId(row),
           spans: [MglTextSpan(text: text)],
         ),
       );
@@ -245,7 +250,7 @@ class XhtmlToDocument {
     if (src == null || src.isEmpty) return null;
     final resolved = resolveHref?.call(src) ?? src;
     return MglBlock.image(
-      id: _nextId(),
+      id: _blockId(node),
       resourceId: resolved,
       width: double.tryParse(node.attributes['width'] ?? ''),
       height: double.tryParse(node.attributes['height'] ?? ''),

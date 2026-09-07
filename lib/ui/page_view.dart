@@ -7,6 +7,7 @@ import 'package:mongol/mongol.dart';
 import '../annotation/annotation.dart';
 import '../model/document.dart';
 import '../model/position.dart';
+import '../pagination/block_text_style.dart';
 import '../pagination/page.dart';
 
 class ReaderThemeColors {
@@ -188,11 +189,12 @@ class MglPageView extends StatelessWidget {
   }
 
   Color? _blockBackground(MglBlock block) {
-    if (selection?.blockId == block.id || highlight?.blockId == block.id) {
+    final chapterId = page.start.chapterId;
+    if (_selectionHits(block, chapterId) || _highlightHits(block, chapterId)) {
       return colors.selection;
     }
     for (final a in annotations) {
-      if ((a.start.blockId == block.id || a.end.blockId == block.id) &&
+      if (annotationAppliesTo(a, chapterId: chapterId, blockId: block.id) &&
           a.style == AnnotationStyle.highlight) {
         return _annotationColor(a.color);
       }
@@ -200,9 +202,24 @@ class MglPageView extends StatelessWidget {
     return null;
   }
 
+  bool _selectionHits(MglBlock block, String chapterId) {
+    final sel = selection;
+    if (sel == null || sel.blockId != block.id) return false;
+    return sel.chapterId == chapterId;
+  }
+
+  bool _highlightHits(MglBlock block, String chapterId) {
+    final hit = highlight;
+    if (hit == null || hit.blockId != block.id) return false;
+    return hit.chapterId == null || hit.chapterId == chapterId;
+  }
+
   bool _blockUnderline(MglBlock block) {
+    final chapterId = page.start.chapterId;
     for (final a in annotations) {
-      if (a.start.blockId != block.id && a.end.blockId != block.id) continue;
+      if (!annotationAppliesTo(a, chapterId: chapterId, blockId: block.id)) {
+        continue;
+      }
       if (a.style == AnnotationStyle.underline ||
           a.style == AnnotationStyle.note) {
         return true;
@@ -221,39 +238,16 @@ class MglPageView extends StatelessWidget {
   }
 
   TextStyle _style(MglTextSpan? span, MglBlock block) {
-    var size = config.fontSize;
-    switch (block.headingLevel) {
-      case 1:
-        size *= 1.6;
-      case 2:
-        size *= 1.4;
-      case 3:
-        size *= 1.25;
-      case 4:
-        size *= 1.1;
-    }
-    if (span?.style.fontSize != null) size = span!.style.fontSize!;
     Color color = colors.foreground;
     if (span?.href != null) color = colors.link;
     if (block.type == MglBlockType.quote) color = colors.secondary;
-    final underline =
-        (span?.style.underline ?? false) || _blockUnderline(block);
-    return TextStyle(
-      fontSize: size,
-      height: config.lineHeight,
-      fontFamily: span?.style.fontFamily ?? config.fontFamily ?? 'OyunQaganTig',
-      fontWeight: (span?.style.bold ?? false) ||
-              block.type == MglBlockType.heading
-          ? FontWeight.bold
-          : FontWeight.normal,
-      fontStyle: (span?.style.italic ?? false) ||
-              block.type == MglBlockType.quote
-          ? FontStyle.italic
-          : FontStyle.normal,
-      decoration:
-          underline ? TextDecoration.underline : TextDecoration.none,
+    return blockTextStyle(
+      block,
+      config,
+      span: span,
       color: color,
       backgroundColor: _blockBackground(block),
+      extraUnderline: _blockUnderline(block),
     );
   }
 }
@@ -288,17 +282,19 @@ class ReaderViewport extends StatelessWidget {
 
 class ReaderSelectionRange {
   const ReaderSelectionRange({
+    this.chapterId,
     required this.blockId,
     required this.start,
     required this.end,
   });
 
+  final String? chapterId;
   final String blockId;
   final int start;
   final int end;
 }
 
-class _ImageBlock extends StatelessWidget {
+class _ImageBlock extends StatefulWidget {
   const _ImageBlock({
     required this.resourceId,
     required this.vertical,
@@ -318,21 +314,48 @@ class _ImageBlock extends StatelessWidget {
   final ReaderThemeColors colors;
 
   @override
+  State<_ImageBlock> createState() => _ImageBlockState();
+}
+
+class _ImageBlockState extends State<_ImageBlock> {
+  Future<List<int>>? _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_ImageBlock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.resourceId != widget.resourceId ||
+        oldWidget.loadImage != widget.loadImage) {
+      _load();
+    }
+  }
+
+  void _load() {
+    final loader = widget.loadImage;
+    _future = loader == null ? null : loader(widget.resourceId);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final loader = loadImage;
-    if (loader == null) {
+    final future = _future;
+    if (future == null) {
       return _fallback();
     }
     return FutureBuilder<List<int>>(
-      future: loader(resourceId),
+      future: future,
       builder: (context, snap) {
         if (!snap.hasData) return _fallback();
         return Image.memory(
           Uint8List.fromList(snap.data!),
           fit: BoxFit.contain,
-          width: vertical ? (width ?? 80) : null,
-          height: vertical ? null : (height ?? 180),
-          cacheWidth: vertical ? 320 : 960,
+          width: widget.vertical ? (widget.width ?? 80) : null,
+          height: widget.vertical ? null : (widget.height ?? 180),
+          cacheWidth: widget.vertical ? 320 : 960,
           errorBuilder: (_, __, ___) => _fallback(),
         );
       },
@@ -342,9 +365,15 @@ class _ImageBlock extends StatelessWidget {
   Widget _fallback() {
     return Padding(
       padding: const EdgeInsets.all(8),
-      child: vertical
-          ? MongolText(alt ?? 'image', style: TextStyle(color: colors.secondary))
-          : Text(alt ?? 'image', style: TextStyle(color: colors.secondary)),
+      child: widget.vertical
+          ? MongolText(
+              widget.alt ?? 'image',
+              style: TextStyle(color: widget.colors.secondary),
+            )
+          : Text(
+              widget.alt ?? 'image',
+              style: TextStyle(color: widget.colors.secondary),
+            ),
     );
   }
 }

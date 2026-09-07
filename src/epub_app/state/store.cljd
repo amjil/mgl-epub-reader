@@ -29,6 +29,8 @@
     :search-results []
     :highlight nil
     :progress 0.0
+    :paginate-gen 0
+    :viewport-key nil
     :settings {:font-size 22.0
                :line-height 1.8
                :theme :light
@@ -87,7 +89,8 @@
   (swap! app-state assoc :library-filter f))
 
 (defn set-error! [msg]
-  (swap! app-state assoc :error msg :status (if msg :error (:status @app-state))))
+  (swap! app-state (fn [s]
+                     (assoc s :error msg :status (if msg :error (:status s))))))
 
 (defn clear-error! []
   (swap! app-state assoc :error nil))
@@ -96,19 +99,23 @@
   (swap! app-state assoc :status status))
 
 (defn set-open-book! [library-book book]
-  (swap! app-state assoc
-         :library-book library-book
-         :book book
-         :chapter nil
-         :pages []
-         :page 0
-         :position nil
-         :pending-position nil
-         :selection nil
-         :note-draft ""
-         :highlight nil
-         :progress (or (some-> library-book .-progress) 0.0)
-         :status :book-loaded))
+  (swap! app-state (fn [s]
+                     (-> s
+                         (update :paginate-gen (fnil inc 0))
+                         (assoc
+                          :library-book library-book
+                          :book book
+                          :chapter nil
+                          :pages []
+                          :page 0
+                          :position nil
+                          :pending-position nil
+                          :selection nil
+                          :note-draft ""
+                          :highlight nil
+                          :progress (or (some-> library-book .-progress) 0.0)
+                          :viewport-key nil
+                          :status :book-loaded)))))
 
 (defn set-landing! [landing]
   (swap! app-state assoc :landing landing))
@@ -117,14 +124,36 @@
   (swap! app-state assoc :pending-position position))
 
 (defn set-chapter! [chapter]
-  (swap! app-state assoc
-         :chapter chapter
-         :pages []
-         :page 0
-         :status :loading-chapter))
+  (swap! app-state (fn [s]
+                     (-> s
+                         (update :paginate-gen (fnil inc 0))
+                         (assoc :chapter chapter
+                                :pages []
+                                :page 0
+                                :viewport-key nil
+                                :status :loading-chapter)))))
 
 (defn set-pages! [pages page]
-  (swap! app-state assoc :pages (vec (or pages [])) :page (or page 0) :status :ready))
+  (let [n (count (or pages []))
+        idx (cond
+              (or (nil? page) (neg? page)) 0
+              (and (pos? n) (>= page n)) (dec n)
+              :else (or page 0))]
+    (swap! app-state assoc :pages (vec (or pages [])) :page idx :status :ready)))
+
+(defn begin-paginate! [viewport-key]
+  (:paginate-gen
+   (swap! app-state (fn [s]
+                      (-> s
+                          (update :paginate-gen (fnil inc 0))
+                          (assoc :status :paginating
+                                 :viewport-key viewport-key
+                                 :error nil))))))
+
+(defn paginate-matches? [gen chapter-id]
+  (let [s @app-state]
+    (and (= gen (:paginate-gen s))
+         (= chapter-id (some-> (:chapter s) .-id)))))
 
 (defn set-page! [page]
   (swap! app-state assoc :page page))
@@ -144,11 +173,17 @@
 (defn set-note-draft! [text]
   (swap! app-state assoc :note-draft (or text "")))
 
+(def ^:private layout-setting-keys
+  #{:font-size :line-height :writing-mode :reading-direction :font-family})
+
 (defn update-settings! [k v]
   (swap! app-state (fn [s]
-                     (-> s
-                         (assoc-in [:settings k] v)
-                         (assoc :pages [] :page 0))))
+                     (let [next (assoc-in s [:settings k] v)]
+                       (if (contains? layout-setting-keys k)
+                         (-> next
+                             (update :paginate-gen (fnil inc 0))
+                             (assoc :pages [] :page 0 :viewport-key nil))
+                         next))))
   (persist-settings! (:settings @app-state)))
 
 (defn toggle-ui! [k]
@@ -167,23 +202,27 @@
                               :note-visible false}))
 
 (defn close-book! []
-  (swap! app-state assoc
-         :book nil
-         :library-book nil
-         :chapter nil
-         :pages []
-         :page 0
-         :position nil
-         :pending-position nil
-         :selection nil
-         :note-draft ""
-         :bookmarks []
-         :annotations []
-         :search-query ""
-         :search-results []
-         :highlight nil
-         :progress 0.0
-         :status :idle)
+  (swap! app-state (fn [s]
+                     (-> s
+                         (update :paginate-gen (fnil inc 0))
+                         (assoc
+                          :book nil
+                          :library-book nil
+                          :chapter nil
+                          :pages []
+                          :page 0
+                          :position nil
+                          :pending-position nil
+                          :selection nil
+                          :note-draft ""
+                          :bookmarks []
+                          :annotations []
+                          :search-query ""
+                          :search-results []
+                          :highlight nil
+                          :progress 0.0
+                          :viewport-key nil
+                          :status :idle))))
   (hide-chrome!))
 
 (defn set-search! [query results]

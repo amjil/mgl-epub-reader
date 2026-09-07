@@ -52,8 +52,7 @@ bool hrefsMatch(String a, String b) {
   final right = norm(b);
   if (left.isEmpty || right.isEmpty) return false;
   if (left == right) return true;
-  if (left.endsWith('/$right') || right.endsWith('/$left')) return true;
-  return p.posix.basename(left) == p.posix.basename(right);
+  return left.endsWith('/$right') || right.endsWith('/$left');
 }
 
 String? fragmentOf(String href) {

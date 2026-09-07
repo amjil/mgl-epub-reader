@@ -217,7 +217,9 @@ class MglEpubEngineImpl implements MglEpubEngine {
       return doc;
     } catch (e) {
       _chapterErrors[chapter.id] = e;
-      final fallback = MglDocument(
+      // Do not cache the fallback: a later retry can succeed if the archive
+      // read was transient, and a cached dummy would hide the real chapter.
+      return MglDocument(
         id: chapter.id,
         blocks: [
           MglBlock.paragraph(
@@ -230,8 +232,6 @@ class MglEpubEngineImpl implements MglEpubEngine {
           ),
         ],
       );
-      _documents[chapter.id] = fallback;
-      return fallback;
     }
   }
 
