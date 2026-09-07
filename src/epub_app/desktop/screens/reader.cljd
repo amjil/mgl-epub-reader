@@ -1,0 +1,226 @@
+(ns epub-app.desktop.screens.reader
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:flutter/gestures.dart" :as g]
+            ["package:flutter/services.dart" :as s]
+            [cljd.flutter :as f]
+            [epub-app.desktop.shortcuts :as shortcuts]
+            [epub-app.desktop.widgets.chrome :as chrome]
+            [epub-app.desktop.widgets.panels :as panels]
+            [epub-app.desktop.widgets.toc :as toc]
+            [epub-app.services.epub-core :as core]
+            [epub-app.state.store :as store]
+            [epub-app.theme :as t]
+            [epub-app.widgets.page :as page]
+            [epub-app.widgets.ui :as ui]))
+
+(def ^:private wheel-cooldown-ms 280)
+
+(defn- abs [n]
+  (if (neg? n) (- n) n))
+
+(defn- rtl? [state]
+  (= :right-to-left (:reading-direction (:settings state))))
+
+(defn- on-escape! [state]
+  (let [ui-state (:ui state)]
+    (cond
+      (:note-visible ui-state) (core/clear-selection!)
+      (:selection state) (core/clear-selection!)
+      (or (:toc-visible ui-state)
+          (:settings-visible ui-state)
+          (:search-visible ui-state)
+          (:bookmarks-visible ui-state)
+          (:notes-visible ui-state))
+      (store/hide-panels!))
+    nil))
+
+(defn- go-home! []
+  (core/go-to-page! 0)
+  nil)
+
+(defn- go-end! []
+  (let [n (count (:pages @store/app-state))]
+    (when (pos? n)
+      (core/go-to-page! (dec n))))
+  nil)
+
+(defn- handle-wheel! [state !lock event]
+  (when (instance? g/PointerScrollEvent event)
+    (let [now (.-millisecondsSinceEpoch (dart:core/DateTime.now))
+          last @!lock
+          d (.-scrollDelta ^g/PointerScrollEvent event)
+          delta (+ (.-dx d) (.-dy d))]
+      (when (and (> (- now last) wheel-cooldown-ms)
+                 (> (abs delta) 8.0))
+        (reset! !lock now)
+        (if (rtl? state)
+          (if (pos? delta) (core/previous-page!) (core/next-page!))
+          (if (pos? delta) (core/next-page!) (core/previous-page!))))))
+  nil)
+
+(defn- edge-hit [side on-tap]
+  (f/widget
+   :managed [!hover (atom false) :dispose nil]
+   :watch [hover? !hover]
+   (m/MouseRegion
+    .cursor m.SystemMouseCursors/click
+    .onEnter (fn [_] (reset! !hover true) nil)
+    .onExit (fn [_] (reset! !hover false) nil)
+    .child
+    (m/GestureDetector
+     .behavior m.HitTestBehavior/translucent
+     .onTap on-tap
+     .child
+     (m/AnimatedContainer
+      .duration t/pane-anim
+      .width 40.0
+      .color (if hover? (t/fade t/ink 0.06) (t/fade t/ink 0.0))
+      .child
+      (m/Center
+       .child
+       (m/Icon (if (= side :left)
+                 m.Icons/chevron_left
+                 m.Icons/chevron_right)
+               .size 22.0
+               .color (if hover? t/ink-muted (t/fade t/ink 0.0)))))))))
+
+(defn- reading-area [state]
+  (f/widget
+   :managed [!wheel (atom 0) :dispose nil]
+   (m/LayoutBuilder
+    .builder
+    (fn [_ constraints]
+      (let [size (m/Size. (.-maxWidth constraints) (.-maxHeight constraints))
+            rtl (rtl? state)
+            prev! (fn [] (if rtl (core/next-page!) (core/previous-page!)))
+            next! (fn [] (if rtl (core/previous-page!) (core/next-page!)))]
+        (page/schedule-paginate! state size)
+        (m/Listener
+         .onPointerSignal (fn [event] (handle-wheel! state !wheel event))
+         .child
+         (m/GestureDetector
+          .onTap (fn []
+                   (store/set-highlight! nil)
+                   (when (:selection state)
+                     (core/clear-selection!)))
+          .onDoubleTap (fn [] (core/add-bookmark!))
+          .onHorizontalDragEnd
+          (fn [details]
+            (let [v (or (.-primaryVelocity details) 0.0)]
+              (cond
+                rtl
+                (cond
+                  (> v 200.0) (core/next-page!)
+                  (< v -200.0) (core/previous-page!))
+                :else
+                (cond
+                  (> v 200.0) (core/previous-page!)
+                  (< v -200.0) (core/next-page!)))))
+          .child
+          (m/Stack
+           .fit m.StackFit/expand
+           .children
+           (filterv some?
+                    [(page/view state size)
+                     (m/Positioned
+                      .top 0.0 .bottom 0.0 .left 0.0
+                      .child (edge-hit :left prev!))
+                     (m/Positioned
+                      .top 0.0 .bottom 0.0 .right 0.0
+                      .child (edge-hit :right next!))
+                     (m/Positioned
+                      .top 0.0 .bottom 0.0 .right 0.0 .width 4.0
+                      .child (ui/v-progress (or (:progress state) 0.0)))
+                     (when (:selection state) (panels/selection-toolbar))
+                     (when (:note-visible (:ui state))
+                       (panels/note-editor (:note-draft state)))
+                     (when (:error state)
+                       (m/Positioned
+                        .bottom 24.0 .left 24.0 .right 24.0
+                        .child
+                        (m/Material
+                         .color t/danger
+                         .child
+                         (m/Padding
+                          .padding (m.EdgeInsets/all 12.0)
+                          .child
+                          (ui/text (:error state) {:color m.Colors/white})))))])))))))))
+
+(defn- toc-and-page [state]
+  (m/LayoutBuilder
+   .builder
+   (fn [_ constraints]
+     (let [avail (.-maxWidth constraints)
+           toc? (:toc-visible (:ui state))
+           max-toc (max t/toc-pane-min-width (- avail 200.0))
+           toc-w (chrome/clamp-toc-width (:toc-pane-width state) max-toc)]
+       (m/Row
+        .crossAxisAlignment m.CrossAxisAlignment/stretch
+        .children
+        (filterv some?
+                 [(when toc?
+                    (m/SizedBox
+                     .width toc-w
+                     .child
+                     (m/DecoratedBox
+                      .decoration (m/BoxDecoration
+                                   .color t/surface
+                                   .border (m/Border
+                                            .right (m/BorderSide .color t/outline .width 1.0)))
+                      .child (toc/pane (or (some-> (:book state) .-toc) [])))))
+                  (when toc? (chrome/toc-split-handle max-toc))
+                  (m/Expanded
+                   .child (reading-area state))]))))))
+
+(defn screen []
+  (f/widget
+   :watch [state store/app-state]
+   (let [ui-state (:ui state)
+         rtl (rtl? state)
+         bindings
+         {(shortcuts/raw-key s.LogicalKeyboardKey/arrowLeft)
+          (fn []
+            (if rtl (core/next-page!) (core/previous-page!))
+            nil)
+          (shortcuts/raw-key s.LogicalKeyboardKey/arrowRight)
+          (fn []
+            (if rtl (core/previous-page!) (core/next-page!))
+            nil)
+          (shortcuts/raw-key s.LogicalKeyboardKey/pageUp)
+          (fn [] (core/previous-page!) nil)
+          (shortcuts/raw-key s.LogicalKeyboardKey/pageDown)
+          (fn [] (core/next-page!) nil)
+          (shortcuts/raw-key s.LogicalKeyboardKey/space)
+          (fn [] (core/next-page!) nil)
+          (shortcuts/raw-key s.LogicalKeyboardKey/home)
+          go-home!
+          (shortcuts/raw-key s.LogicalKeyboardKey/end)
+          go-end!
+          (shortcuts/raw-key s.LogicalKeyboardKey/escape)
+          (fn [] (on-escape! state))
+          (shortcuts/cmd-key s.LogicalKeyboardKey/keyF)
+          (fn [] (store/toggle-panel! :search-visible) nil)
+          (shortcuts/cmd-key s.LogicalKeyboardKey/keyB)
+          (fn [] (core/add-bookmark!) nil)
+          (shortcuts/cmd-key s.LogicalKeyboardKey/keyT)
+          (fn [] (store/toggle-panel! :toc-visible) nil)
+          (shortcuts/cmd-key s.LogicalKeyboardKey/comma)
+          (fn [] (store/toggle-panel! :settings-visible) nil)}]
+     (shortcuts/with-shortcuts
+      bindings
+      (m/Focus
+       .autofocus true
+       .child
+       (m/Scaffold
+        .backgroundColor t/bg
+        .body
+        (m/SafeArea
+         .child
+         (m/Row
+          .crossAxisAlignment m.CrossAxisAlignment/stretch
+          .children
+          (filterv some?
+                   [(chrome/left-rail (:book state) ui-state)
+                    (m/Expanded .child (toc-and-page state))
+                    (panels/docked state)
+                    (chrome/right-rail state)])))))))))

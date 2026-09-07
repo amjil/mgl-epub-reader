@@ -1,21 +1,21 @@
-(ns epub-app.widgets.library
+(ns epub-app.widgets.books
+  "Shared library helpers: covers, menus, filters."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
             ["dart:io" :as io]
-            [cljd.flutter :as f]
             [components.menu :as menu]
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]
             [epub-app.widgets.ui :as ui]))
 
-(def ^:private filters
+(def filters
   [[:all "All"]
    [:recent "Recent"]
    [:favorites "Favorites"]
    [:finished "Finished"]])
 
-(defn- filtered-books [state]
+(defn filtered-books [state]
   (let [books (:library state)]
     (case (:library-filter state)
       :favorites (filterv #(.-favorite %) books)
@@ -23,7 +23,7 @@
       :recent (vec (take 20 books))
       (vec books))))
 
-(defn- confirm-delete! [ctx book]
+(defn confirm-delete! [ctx book]
   (m/showDialog
    .context ctx
    .builder
@@ -41,7 +41,7 @@
                      (core/remove-book! (.-id book)))
         .child (ui/text "Delete" {:color t/danger}))]))))
 
-(defn- book-menu [ctx book]
+(defn book-menu [ctx book]
   (menu/custom-popup-menu
    {:trigger-builder
     (fn [show-menu]
@@ -77,15 +77,17 @@
              :leading-color t/danger
              :on-tap #(confirm-delete! ctx book)}]}))
 
-(defn- cover-placeholder []
+(defn cover-placeholder
+  [& {:keys [width height] :or {width 64.0 height 96.0}}]
   (m/Container
-   .width 64.0 .height 96.0
+   .width width .height height
    .decoration (m/BoxDecoration
                 .color t/primary-soft
                 .borderRadius (m.BorderRadius/circular 8.0))
    .child (m/Center .child (m/Icon m.Icons/menu_book .color t/primary))))
 
-(defn- cover-thumb [book]
+(defn cover-thumb
+  [book & {:keys [width height] :or {width 64.0 height 96.0}}]
   (let [path (.-cover book)]
     (if (and path (.existsSync (io/File. path)))
       (m/ClipRRect
@@ -93,16 +95,17 @@
        .child
        (m/Image.file
         (io/File. path)
-        .width 64.0
-        .height 96.0
+        .width width
+        .height height
         .fit m.BoxFit/cover
-        .errorBuilder (fn [_ _ _] (cover-placeholder))))
-      (cover-placeholder))))
+        .errorBuilder (fn [_ _ _] (cover-placeholder :width width :height height))))
+      (cover-placeholder :width width :height height))))
 
-(defn- cover-with-badge [book]
+(defn cover-with-badge
+  [book & {:keys [width height] :or {width 64.0 height 96.0}}]
   (m/Stack
    .children
-   [(cover-thumb book)
+   [(cover-thumb book :width width :height height)
     (if (.-favorite book)
       (m/Positioned
        .right 0.0
@@ -110,31 +113,7 @@
        .child (m/Icon m.Icons/star .color t/gold .size 16.0))
       (m/SizedBox.shrink))]))
 
-(defn- book-card [ctx book]
-  (let [author (or (.-author book) "")]
-    (ui/card-shell
-     (m/Row
-      .crossAxisAlignment m.CrossAxisAlignment/stretch
-      .children
-      [(cover-with-badge book)
-       (ui/gap-h 8)
-       (m/Expanded
-        .child (ui/text (or (.-title book) "Untitled")
-                        {:size 18.0 :weight m.FontWeight/bold :max-lines 1}))
-       (if (seq author)
-         (m/Flexible
-          .child
-          (m/Padding
-           .padding (m.EdgeInsets/only .left 6.0)
-           .child (ui/text author {:size 13.0 :color t/ink-muted :max-lines 1})))
-         (m/SizedBox.shrink))
-       (ui/gap-h 6)
-       (ui/v-progress (.-progress book))
-       (book-menu ctx book)])
-     :width 196.0
-     :on-tap (fn [] (core/open-library-book! (.-id book))))))
-
-(defn- filter-rail [selected]
+(defn filter-rail [selected]
   (m/Column
    .mainAxisSize m.MainAxisSize/min
    .children
@@ -143,73 +122,3 @@
                      :active? (= id selected)
                      :on-tap #(store/set-library-filter! id)}))
          filters)))
-
-(defn- library-rail [state]
-  (m/Container
-   .width 72.0
-   .decoration (m/BoxDecoration
-                .color t/surface
-                .border (m/Border .right (m/BorderSide .color t/outline .width 1.0)))
-   .child
-   (m/Column
-    .children
-    [(m/Padding
-      .padding (m.EdgeInsets/fromLTRB 8.0 16.0 8.0 8.0)
-      .child (ui/text "ᠨᠣᠮ" {:size 20.0 :weight m.FontWeight/bold}))
-     (m/Expanded
-      .child
-      (m/SingleChildScrollView
-       .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 8.0)
-       .child (filter-rail (:library-filter state))))
-     (m/Padding
-      .padding (m.EdgeInsets/only .bottom 12.0)
-      .child
-      (m/IconButton
-       .style (m/IconButton.styleFrom
-               .backgroundColor t/primary-soft
-               .foregroundColor t/primary)
-       .icon (m/Icon m.Icons/add)
-       .onPressed (fn [] (core/pick-and-import!))))])))
-
-(defn screen []
-  (f/widget
-   :watch [state store/app-state]
-   :context ctx
-   (m/Scaffold
-    .backgroundColor t/bg
-    .body
-    (m/SafeArea
-     .child
-     (if (empty? (:library state))
-       (m/Row
-        .crossAxisAlignment m.CrossAxisAlignment/stretch
-        .children
-        [(library-rail state)
-         (m/Expanded
-          .child
-          (m/Center
-           .child
-           (m/Row
-            .mainAxisSize m.MainAxisSize/min
-            .children
-            [(m/Icon m.Icons/menu_book_outlined .size 48.0 .color t/ink-muted)
-             (ui/gap-h 16)
-             (ui/text "EPUB" {:size 18.0 :color t/ink-muted})
-             (if (:error state)
-               (m/Padding
-                .padding (m.EdgeInsets/only .left 16.0)
-                .child (ui/text (:error state) {:color t/danger}))
-               (m/SizedBox.shrink))])))])
-       (let [books (filtered-books state)]
-         (m/Row
-          .crossAxisAlignment m.CrossAxisAlignment/stretch
-          .children
-          [(library-rail state)
-           (m/Expanded
-            .child
-            (if (empty? books)
-              (ui/empty-state m.Icons/filter_none "No books in this filter")
-              (m/ListView
-               .scrollDirection m.Axis/horizontal
-               .padding (m.EdgeInsets/fromLTRB 12.0 8.0 20.0 8.0)
-               .children (vec (map #(book-card ctx %) books)))))])))))))

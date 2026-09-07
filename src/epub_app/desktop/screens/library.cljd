@@ -1,0 +1,126 @@
+(ns epub-app.desktop.screens.library
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:flutter/services.dart" :as s]
+            [cljd.flutter :as f]
+            [epub-app.desktop.shortcuts :as shortcuts]
+            [epub-app.services.epub-core :as core]
+            [epub-app.state.store :as store]
+            [epub-app.theme :as t]
+            [epub-app.widgets.books :as books]
+            [epub-app.widgets.ui :as ui]))
+
+(defn- book-card [ctx book]
+  (f/widget
+   :managed [!hover (atom false) :dispose nil]
+   :watch [hover? !hover]
+   (let [author (or (.-author book) "")]
+     (m/MouseRegion
+      .cursor m.SystemMouseCursors/click
+      .onEnter (fn [_] (reset! !hover true) nil)
+      .onExit (fn [_] (reset! !hover false) nil)
+      .child
+      (ui/card-shell
+       (m/Row
+        .crossAxisAlignment m.CrossAxisAlignment/stretch
+        .children
+        [(books/cover-with-badge book :width 80.0 :height 120.0)
+         (ui/gap-h 10)
+         (m/Expanded
+          .child (ui/text (or (.-title book) "Untitled")
+                          {:size 18.0 :weight m.FontWeight/bold :max-lines 1}))
+         (if (seq author)
+           (m/Flexible
+            .child
+            (m/Padding
+             .padding (m.EdgeInsets/only .left 6.0)
+             .child (ui/text author {:size 13.0 :color t/ink-muted :max-lines 1})))
+           (m/SizedBox.shrink))
+         (ui/gap-h 8)
+         (ui/v-progress (.-progress book))
+         (books/book-menu ctx book)])
+       :width 228.0
+       :elevated? hover?
+       :on-tap (fn [] (core/open-library-book! (.-id book))))))))
+
+(defn- library-rail [state]
+  (m/Container
+   .width 80.0
+   .decoration (m/BoxDecoration
+                .color t/surface
+                .border (m/Border .right (m/BorderSide .color t/outline .width 1.0)))
+   .child
+   (m/Column
+    .children
+    [(m/Padding
+      .padding (m.EdgeInsets/fromLTRB 8.0 20.0 8.0 8.0)
+      .child (ui/text "ᠨᠣᠮ" {:size 22.0 :weight m.FontWeight/bold}))
+     (m/Expanded
+      .child
+      (m/SingleChildScrollView
+       .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 8.0)
+       .child (books/filter-rail (:library-filter state))))
+     (m/Padding
+      .padding (m.EdgeInsets/only .bottom 16.0)
+      .child
+      (ui/icon-btn m.Icons/add
+                   (fn [] (core/pick-and-import!))
+                   :tooltip "Import EPUB"
+                   :filled? true))])))
+
+(defn- empty-library [state]
+  (m/Center
+   .child
+   (m/Row
+    .mainAxisSize m.MainAxisSize/min
+    .children
+    [(m/Container
+      .width 72.0 .height 72.0
+      .decoration (m/BoxDecoration
+                   .color t/primary-soft
+                   .borderRadius (m.BorderRadius/circular 20.0))
+      .child (m/Center .child (m/Icon m.Icons/menu_book_outlined
+                                      .size 36.0 .color t/primary)))
+     (ui/gap-h 20)
+     (m/Column
+      .mainAxisSize m.MainAxisSize/min
+      .crossAxisAlignment m.CrossAxisAlignment/start
+      .children
+      [(ui/text "EPUB" {:size 20.0 :weight m.FontWeight/bold})
+       (ui/gap-h 8)
+       (ui/text "Import a book to start" {:size 14.0 :color t/ink-muted})
+       (if (:error state)
+         (m/Padding
+          .padding (m.EdgeInsets/only .top 12.0)
+          .child (ui/text (:error state) {:color t/danger}))
+         (m/SizedBox.shrink))])])))
+
+(defn screen []
+  (f/widget
+   :watch [state store/app-state]
+   :context ctx
+   (shortcuts/with-shortcuts
+    {(shortcuts/cmd-key s.LogicalKeyboardKey/keyO)
+     (fn [] (core/pick-and-import!) nil)}
+    (m/Focus
+     .autofocus true
+     .child
+     (m/Scaffold
+      .backgroundColor t/bg
+      .body
+      (m/SafeArea
+       .child
+       (m/Row
+        .crossAxisAlignment m.CrossAxisAlignment/stretch
+        .children
+        [(library-rail state)
+         (m/Expanded
+          .child
+          (if (empty? (:library state))
+            (empty-library state)
+            (let [shown (books/filtered-books state)]
+              (if (empty? shown)
+                (ui/empty-state m.Icons/filter_none "No books in this filter")
+                (m/ListView
+                 .scrollDirection m.Axis/horizontal
+                 .padding (m.EdgeInsets/fromLTRB 16.0 12.0 24.0 12.0)
+                 .children (vec (map #(book-card ctx %) shown)))))))])))))))

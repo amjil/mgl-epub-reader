@@ -21,6 +21,13 @@
 (def radius-s 10.0)
 (def radius-m 16.0)
 
+(def chrome-width 56.0)
+(def toc-pane-width 240.0)
+(def toc-pane-min-width 160.0)
+(def toc-pane-max-width 480.0)
+(def side-panel-width 300.0)
+(def pane-anim (dart:core/Duration. .milliseconds 200))
+
 (defn fade [color opacity]
   (.withOpacity ^m/Color color opacity))
 

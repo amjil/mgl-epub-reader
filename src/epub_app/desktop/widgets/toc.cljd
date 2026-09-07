@@ -1,0 +1,34 @@
+(ns epub-app.desktop.widgets.toc
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            [epub-app.services.epub-core :as core]
+            [epub-app.theme :as t]
+            [epub-app.widgets.ui :as ui]))
+
+(defn- toc-tile [item]
+  (mgl/MongolListTile
+   .title (ui/text (.-title item) {:size 16.0})
+   .onTap (fn [] (core/open-toc-href! (.-href item)))))
+
+(defn pane [items]
+  (m/ColoredBox
+   .color t/surface
+   .child
+   (m/Column
+    .crossAxisAlignment m.CrossAxisAlignment/stretch
+    .children
+    [(m/Padding
+      .padding (m.EdgeInsets/fromLTRB 12.0 16.0 8.0 8.0)
+      .child (ui/text "Contents" {:size 16.0 :weight m.FontWeight/bold}))
+     (m/Expanded
+      .child
+      (if (empty? items)
+        (ui/empty-state m.Icons/list "No contents")
+        (m/ListView
+         .scrollDirection m.Axis/horizontal
+         .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+         .children
+         (vec (mapcat (fn [item]
+                        (cons (toc-tile item)
+                              (map toc-tile (.-children item))))
+                      items)))))])))

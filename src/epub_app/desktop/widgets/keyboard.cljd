@@ -1,0 +1,7 @@
+(ns epub-app.desktop.widgets.keyboard
+  "Desktop global IME overlay wrapper."
+  (:require [shared-ime.overlay-view :as overlay]))
+
+(defn wrap
+  [main-content]
+  (overlay/ime-global-wrapper main-content "epub-desktop-ime"))

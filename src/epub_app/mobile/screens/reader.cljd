@@ -1,11 +1,11 @@
-(ns epub-app.widgets.reader
+(ns epub-app.mobile.screens.reader
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
-            ["package:mgl_epub_reader/mgl_epub_reader.dart" :as epub]
             [cljd.flutter :as f]
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]
+            [epub-app.widgets.page :as page]
             [epub-app.widgets.ui :as ui]))
 
 (defn- toc-tile [item]
@@ -341,64 +341,6 @@
                (when (:selection state) (selection-toolbar))
                (when (:note-visible ui-state) (note-panel (:note-draft state)))]))))
 
-(defn- needs-paginate? [state size]
-  (and (:chapter state)
-       (pos? (.-width size))
-       (pos? (.-height size))
-       (let [key (core/viewport-key size)
-             stale? (or (empty? (:pages state))
-                        (not= (:viewport-key state) key))
-             failed-this-size? (and (= (:status state) :error)
-                                    (= (:viewport-key state) key))]
-         (and stale? (not failed-this-size?)))))
-
-(defn- already-paginating-for? [state size]
-  (and (= (:status state) :paginating)
-       (= (:viewport-key state) (core/viewport-key size))))
-
-(defn- schedule-paginate! [state size]
-  (when (and (needs-paginate? state size)
-             (not (already-paginating-for? state size)))
-    (.addPostFrameCallback
-     m.WidgetsBinding/instance
-     (fn [_]
-       (let [s @store/app-state]
-         (when (and (needs-paginate? s size)
-                    (not (already-paginating-for? s size)))
-           (core/paginate-current! size)))))))
-
-(defn- page-widget [state size]
-  (let [pages (:pages state)
-        n (count pages)
-        page (if (pos? n) (min (max (:page state) 0) (dec n)) 0)]
-    (if (empty? pages)
-      (m/Center .child (m/CircularProgressIndicator.))
-      (let [cur (nth pages page)
-            prev (when (pos? page) (nth pages (dec page)))
-            nxt (when (< page (dec n)) (nth pages (inc page)))
-            ch-id (some-> (:chapter state) .-id)
-            anns (if ch-id
-                   (filterv #(= (.-chapterId %) ch-id) (:annotations state))
-                   (:annotations state))
-            view (fn [pg]
-                   (epub/MglPageView.
-                    .page pg
-                    .config (core/layout-config size)
-                    .colors (core/theme-colors)
-                    .loadImage core/load-image
-                    .annotations anns
-                    .selection (:selection state)
-                    .highlight (:highlight state)
-                    .onBlockLongPress (fn [block] (core/select-block! block))
-                    .onLinkTap (fn [href] (core/open-link! href))))]
-        (m/Stack
-         .fit m.StackFit/expand
-         .children
-         (filterv some?
-                  [(when prev (m/Offstage .offstage true .child (view prev)))
-                   (view cur)
-                   (when nxt (m/Offstage .offstage true .child (view nxt)))]))))))
-
 (defn screen []
   (f/widget
    :watch [state store/app-state]
@@ -410,7 +352,7 @@
      (fn [_ constraints]
        (let [size (m/Size. (.-maxWidth constraints) (.-maxHeight constraints))
              rtl? (= :right-to-left (:reading-direction (:settings state)))]
-         (schedule-paginate! state size)
+         (page/schedule-paginate! state size)
          (m/GestureDetector
           .onTap (fn []
                    (store/set-highlight! nil)
@@ -433,7 +375,7 @@
           .child
           (m/Stack
            .children
-           [(page-widget state size)
+           [(page/view state size)
             (m/Positioned
              .top 0.0 .bottom 0.0 .right 0.0 .width 4.0
              .child (ui/v-progress (or (:progress state) 0.0)))

@@ -5,6 +5,7 @@
             ["package:flutter/services.dart" :as services]
             ["package:file_selector/file_selector.dart" :as fs]
             ["dart:async" :as async]
+            [epub-app.platform :as platform]
             [epub-app.state.store :as store]))
 
 (defonce !bridge (atom nil))
@@ -220,7 +221,9 @@
 
 (defn open-toc-href! [href]
   (when-let [ch (.chapterByHref (bridge) href)]
-    (store/hide-chrome!)
+    (if (platform/desktop?)
+      (store/set-ui! :search-visible false)
+      (store/hide-chrome!))
     (if-let [frag (href-fragment href)]
       (await (go-to-position!
               (epub/ReaderPosition.
@@ -294,7 +297,7 @@
     (let [q (.-text sel)]
       (store/set-selection! nil)
       (store/set-ui! :note-visible false)
-      (store/set-ui! :search-visible true)
+      (store/show-panel! :search-visible)
       (search! q))))
 
 (defn- annotation-from-selection [style color note]

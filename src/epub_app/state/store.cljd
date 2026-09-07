@@ -44,6 +44,7 @@
          :bookmarks-visible false
          :notes-visible false
          :note-visible false}
+    :toc-pane-width 240.0
     :error nil}))
 
 (defn- persist-settings! [settings]
@@ -191,6 +192,43 @@
 
 (defn set-ui! [k v]
   (swap! app-state assoc-in [:ui k] v))
+
+(def ^:private right-panel-keys
+  [:settings-visible :search-visible :bookmarks-visible :notes-visible])
+
+(defn toggle-panel!
+  "Desktop: TOC toggles independently; right-side panels are exclusive."
+  [k]
+  (swap! app-state update :ui
+         (fn [ui]
+           (let [on? (not (get ui k))]
+             (if (= k :toc-visible)
+               (assoc ui :toc-visible on?)
+               (reduce (fn [u key]
+                         (assoc u key (and on? (= key k))))
+                       ui
+                       right-panel-keys))))))
+
+(defn show-panel! [k]
+  (swap! app-state update :ui
+         (fn [ui]
+           (if (= k :toc-visible)
+             (assoc ui :toc-visible true)
+             (reduce (fn [u key]
+                       (assoc u key (= key k)))
+                     ui
+                     right-panel-keys)))))
+
+(defn hide-panels! []
+  (swap! app-state update :ui assoc
+         :toc-visible false
+         :settings-visible false
+         :search-visible false
+         :bookmarks-visible false
+         :notes-visible false))
+
+(defn set-toc-pane-width! [w]
+  (swap! app-state assoc :toc-pane-width (double w)))
 
 (defn hide-chrome! []
   (swap! app-state assoc :ui {:menu-visible false

@@ -1,19 +1,27 @@
 (ns epub-app.desktop
   (:require ["package:flutter/material.dart" :as m]
+            ["package:flutter/services.dart" :as s]
             [cljd.flutter :as f]
+            [epub-app.desktop.screens.library :as library]
+            [epub-app.desktop.screens.reader :as reader]
+            [epub-app.desktop.shortcuts :as shortcuts]
+            [epub-app.desktop.widgets.keyboard :as kb]
+            [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
-            [epub-app.theme :as t]
-            [epub-app.widgets.library :as library]
-            [epub-app.widgets.reader :as reader]))
+            [epub-app.theme :as t]))
 
 (defn app []
   (f/widget
    :watch [state store/app-state]
-   (m/MaterialApp
-    .title "MGL EPUB"
-    .debugShowCheckedModeBanner false
-    .theme t/app-theme
-    .home
-    (if (:book state)
-      (reader/screen)
-      (library/screen)))))
+   (shortcuts/with-shortcuts
+    {(shortcuts/cmd-key s.LogicalKeyboardKey/keyO)
+     (fn [] (core/pick-and-import!) nil)}
+    (m/MaterialApp
+     .title "MGL EPUB"
+     .debugShowCheckedModeBanner false
+     .theme t/app-theme
+     .home
+     (kb/wrap
+      (if (:book state)
+        (reader/screen)
+        (library/screen)))))))

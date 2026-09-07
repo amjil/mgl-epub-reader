@@ -1,0 +1,132 @@
+(ns epub-app.desktop.widgets.chrome
+  "Persistent desktop rails, tooltips, and the TOC split handle."
+  (:require ["package:flutter/material.dart" :as m]
+            [cljd.flutter :as f]
+            [epub-app.services.epub-core :as core]
+            [epub-app.state.store :as store]
+            [epub-app.theme :as t]
+            [epub-app.widgets.ui :as ui]))
+
+(def ^:private split-handle-width 8.0)
+
+(defn rail
+  "Vertical chrome column with a hairline border on `side` (:left or :right)."
+  [side child]
+  (m/Container
+   .width t/chrome-width
+   .decoration (m/BoxDecoration
+                .color t/surface
+                .border (if (= side :left)
+                          (m/Border .right (m/BorderSide .color t/outline .width 1.0))
+                          (m/Border .left (m/BorderSide .color t/outline .width 1.0))))
+   .child child))
+
+(defn clamp-toc-width [w max-w]
+  (let [lo t/toc-pane-min-width
+        hi (max lo (min t/toc-pane-max-width max-w))]
+    (-> (double (or w t/toc-pane-width))
+        (max lo)
+        (min hi))))
+
+(defn toc-split-handle [max-w]
+  (f/widget
+   :managed [!active? (atom false) :dispose nil]
+   :watch [active? !active?]
+   (m/MouseRegion
+    .cursor m.SystemMouseCursors/resizeColumn
+    .onEnter (fn [_] (reset! !active? true) nil)
+    .onExit (fn [_] (reset! !active? false) nil)
+    .child
+    (m/GestureDetector
+     .behavior m.HitTestBehavior/translucent
+     .onHorizontalDragUpdate
+     (fn [^m/DragUpdateDetails d]
+       (let [dx (.-dx ^m/Offset (.-delta d))
+             cur (or (:toc-pane-width @store/app-state) t/toc-pane-width)]
+         (store/set-toc-pane-width! (clamp-toc-width (+ cur dx) max-w)))
+       nil)
+     .child
+     (m/Tooltip
+      .message "Drag to resize"
+      .waitDuration (dart:core/Duration. .milliseconds 800)
+      .child
+      (m/SizedBox
+       .width split-handle-width
+       .child
+       (m/Center
+        .child
+        (m/AnimatedContainer
+         .duration t/pane-anim
+         .width (if active? 3.0 1.0)
+         .height (if active? 56.0 28.0)
+         .decoration (m/BoxDecoration
+                      .color (if active? t/primary t/outline)
+                      .borderRadius (m.BorderRadius/circular 2.0))))))))))
+
+(defn left-rail [book ui-state]
+  (rail
+   :left
+   (m/Column
+    .children
+    [(ui/icon-btn m.Icons/arrow_back_rounded
+                  (fn [] (core/close-book!))
+                  :tooltip "Back to library")
+     (m/Expanded
+      .child
+      (m/Padding
+       .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
+       .child
+       (ui/text (or (some-> book .-title) "")
+                {:size 16.0 :weight m.FontWeight/bold :max-lines 1})))
+     (ui/icon-btn m.Icons/list
+                  (fn [] (store/toggle-panel! :toc-visible))
+                  :tooltip "Table of contents"
+                  :filled? (:toc-visible ui-state)
+                  :color (if (:toc-visible ui-state) t/primary t/ink-muted))
+     (ui/icon-btn m.Icons/bookmarks_outlined
+                  (fn [] (store/toggle-panel! :bookmarks-visible))
+                  :tooltip "Bookmarks"
+                  :filled? (:bookmarks-visible ui-state)
+                  :color (if (:bookmarks-visible ui-state) t/primary t/ink-muted))
+     (ui/icon-btn m.Icons/notes_outlined
+                  (fn [] (store/toggle-panel! :notes-visible))
+                  :tooltip "Notes"
+                  :filled? (:notes-visible ui-state)
+                  :color (if (:notes-visible ui-state) t/primary t/ink-muted))
+     (ui/icon-btn m.Icons/bookmark_add_outlined
+                  (fn [] (core/add-bookmark!))
+                  :tooltip "Add bookmark")
+     (ui/icon-btn m.Icons/search
+                  (fn [] (store/toggle-panel! :search-visible))
+                  :tooltip "Search"
+                  :filled? (:search-visible ui-state)
+                  :color (if (:search-visible ui-state) t/primary t/ink-muted))
+     (ui/icon-btn m.Icons/tune
+                  (fn [] (store/toggle-panel! :settings-visible))
+                  :tooltip "Settings"
+                  :filled? (:settings-visible ui-state)
+                  :color (if (:settings-visible ui-state) t/primary t/ink-muted))])))
+
+(defn right-rail [state]
+  (rail
+   :right
+   (m/Column
+    .children
+    [(ui/icon-btn m.Icons/chevron_left
+                  (fn [] (core/previous-page!))
+                  :tooltip "Previous page")
+     (m/Expanded
+      .child
+      (m/Padding
+       .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
+       .child
+       (ui/text
+        (str (or (some-> (:chapter state) .-title) "")
+             "  "
+             (inc (:page state))
+             " / "
+             (count (:pages state)))
+        {:size 13.0 :color t/ink-muted :max-lines 1})))
+     (ui/icon-btn m.Icons/chevron_right
+                  (fn [] (core/next-page!))
+                  :tooltip "Next page")])))

@@ -1,10 +1,10 @@
 (ns epub-app.mobile
   (:require ["package:flutter/material.dart" :as m]
             [cljd.flutter :as f]
+            [epub-app.mobile.screens.library :as library]
+            [epub-app.mobile.screens.reader :as reader]
             [epub-app.state.store :as store]
-            [epub-app.theme :as t]
-            [epub-app.widgets.library :as library]
-            [epub-app.widgets.reader :as reader]))
+            [epub-app.theme :as t]))
 
 (defn app []
   (f/widget

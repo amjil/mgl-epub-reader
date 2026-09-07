@@ -70,8 +70,20 @@
                    .color t/primary
                    .borderRadius (m.BorderRadius/circular 2.0)))))))
 
+(defn icon-btn
+  [icon on-pressed & {:keys [tooltip color filled?]
+                      :or {color t/ink-muted}}]
+  (m/IconButton
+   .tooltip tooltip
+   .style (when filled?
+            (m/IconButton.styleFrom
+             .backgroundColor t/primary-soft
+             .foregroundColor t/primary))
+   .icon (m/Icon icon .color (if filled? t/primary color))
+   .onPressed on-pressed))
+
 (defn card-shell
-  [child & {:keys [width on-tap margin]
+  [child & {:keys [width on-tap margin elevated?]
             :or {width 148.0}}]
   (m/Container
    .width width
@@ -80,7 +92,12 @@
    .decoration (m/BoxDecoration
                 .color t/surface
                 .borderRadius (m.BorderRadius/circular t/radius-m)
-                .boxShadow (t/card-shadow))
+                .boxShadow (if elevated?
+                             [(m/BoxShadow
+                               .color (t/fade t/ink 0.12)
+                               .blurRadius 22.0
+                               .offset (m/Offset. 0.0 8.0))]
+                             (t/card-shadow)))
    .child
    (m/Material
     .color t/surface
