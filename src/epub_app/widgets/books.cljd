@@ -23,6 +23,13 @@
       :recent (vec (take 20 books))
       (vec books))))
 
+(defn matches-query? [book query]
+  (let [q (.toLowerCase (or query ""))
+        title (.toLowerCase (or (.-title book) ""))
+        author (.toLowerCase (or (.-author book) ""))]
+    (and (seq q)
+         (or (.contains title q) (.contains author q)))))
+
 (defn confirm-delete! [ctx book]
   (m/showDialog
    .context ctx
@@ -112,6 +119,30 @@
        .bottom 0.0
        .child (m/Icon m.Icons/star .color t/gold .size 16.0))
       (m/SizedBox.shrink))]))
+
+(defn library-card [ctx book]
+  (let [author (or (.-author book) "")]
+    (ui/card-shell
+     (m/Row
+      .crossAxisAlignment m.CrossAxisAlignment/stretch
+      .children
+      [(cover-with-badge book)
+       (ui/gap-h 8)
+       (m/Expanded
+        .child (ui/text (or (.-title book) "Untitled")
+                        {:size 18.0 :weight m.FontWeight/bold :max-lines 1}))
+       (if (seq author)
+         (m/Flexible
+          .child
+          (m/Padding
+           .padding (m.EdgeInsets/only .left 6.0)
+           .child (ui/text author {:size 13.0 :color t/ink-muted :max-lines 1})))
+         (m/SizedBox.shrink))
+       (ui/gap-h 6)
+       (ui/v-progress (.-progress book))
+       (book-menu ctx book)])
+     :width 196.0
+     :on-tap (fn [] (core/open-library-book! (.-id book))))))
 
 (defn filter-rail [selected]
   (m/Column

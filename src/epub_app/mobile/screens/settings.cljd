@@ -1,0 +1,67 @@
+(ns epub-app.mobile.screens.settings
+  (:require ["package:flutter/material.dart" :as m]
+            [cljd.flutter :as f]
+            [epub-app.state.store :as store]
+            [epub-app.theme :as t]
+            [epub-app.widgets.ui :as ui]))
+
+(defn- setting-pills [value options on-pick]
+  (m/Column
+   .mainAxisSize m.MainAxisSize/min
+   .children
+   (mapv (fn [[id label]]
+           (ui/pill {:label label
+                      :active? (= id value)
+                      :on-tap #(on-pick id)}))
+         options)))
+
+(defn- labeled [label child]
+  (m/Row
+   .crossAxisAlignment m.CrossAxisAlignment/center
+   .children
+   [(ui/text label {:size 13.0 :color t/ink-muted})
+    (ui/gap-h 8)
+    child]))
+
+(defn screen []
+  (f/widget
+   :watch [state store/app-state]
+   (let [settings (:settings state)]
+     (m/SingleChildScrollView
+      .scrollDirection m.Axis/horizontal
+      .padding (m.EdgeInsets/all 16.0)
+      .child
+      (m/Row
+       .crossAxisAlignment m.CrossAxisAlignment/center
+       .children
+       [(ui/text "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠤᠯᠲᠠ" {:size 18.0 :weight m.FontWeight/bold})
+        (ui/gap-h 20)
+        (labeled "Font size"
+                 (ui/v-slider 14.0 36.0 (:font-size settings)
+                             (fn [v] (store/update-settings! :font-size v))))
+        (ui/gap-h 16)
+        (labeled "Line height"
+                 (ui/v-slider 1.2 2.4 (:line-height settings)
+                             (fn [v] (store/update-settings! :line-height v))))
+        (ui/gap-h 16)
+        (setting-pills (:writing-mode settings)
+                       [[:vertical "vertical"]
+                        [:horizontal "horizontal"]]
+                       #(store/update-settings! :writing-mode %))
+        (ui/gap-h 12)
+        (setting-pills (:reading-direction settings)
+                       [[:left-to-right "LTR"]
+                        [:right-to-left "RTL"]]
+                       #(store/update-settings! :reading-direction %))
+        (ui/gap-h 12)
+        (setting-pills (:font-family settings)
+                       [["OyunQaganTig" "Oyun"]
+                        ["MongolianBaiZheng" "BaiZheng"]]
+                       #(store/update-settings! :font-family %))
+        (ui/gap-h 12)
+        (setting-pills (:theme settings)
+                       [[:light "light"]
+                        [:sepia "sepia"]
+                        [:dark "dark"]
+                        [:black "black"]]
+                       #(store/update-settings! :theme %))])))))

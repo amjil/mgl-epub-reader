@@ -31,18 +31,26 @@
   (store/set-library! (await (.listBooks (bridge)))))
 
 (defn pick-and-import! []
-  (let [group (fs/XTypeGroup. .label "EPUB" .extensions #dart ^String ["epub"])
-        file (await (fs/openFile .acceptedTypeGroups #dart ^fs/XTypeGroup [group]))]
-    (when file
-      (store/set-status! :loading-book)
-      (try
-        (let [row (await (.importPath (bridge) (.-path file)))]
-          (await (refresh-library!))
-          (store/set-status! :idle)
-          row)
-        (catch Exception e
-          (store/set-error! (str e))
-          nil)))))
+  (let [group (fs/XTypeGroup.
+                .label "EPUB"
+                .extensions #dart ^String ["epub"]
+                .mimeTypes #dart ^String ["application/epub+zip"]
+                .uniformTypeIdentifiers #dart ^String ["org.idpf.epub-container"])]
+    (try
+      (let [file (await (fs/openFile .acceptedTypeGroups #dart ^fs/XTypeGroup [group]))]
+        (when file
+          (store/set-status! :loading-book)
+          (try
+            (let [row (await (.importPath (bridge) (.-path file)))]
+              (await (refresh-library!))
+              (store/set-status! :idle)
+              row)
+            (catch Exception e
+              (store/set-error! (str e))
+              nil))))
+      (catch Exception e
+        (store/set-error! (str e))
+        nil))))
 
 (defn- page-index-for [pages position]
   (if (or (nil? position) (empty? pages))

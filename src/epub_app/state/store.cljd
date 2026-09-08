@@ -13,6 +13,8 @@
    {:status :idle
     :library []
     :library-filter :all
+    :library-search-query ""
+    :mobile-tab :library
     :book nil
     :library-book nil
     :chapter nil
@@ -88,6 +90,12 @@
 
 (defn set-library-filter! [f]
   (swap! app-state assoc :library-filter f))
+
+(defn set-mobile-tab! [tab]
+  (swap! app-state assoc :mobile-tab tab))
+
+(defn set-library-search! [q]
+  (swap! app-state assoc :library-search-query (or q "")))
 
 (defn set-error! [msg]
   (swap! app-state (fn [s]

@@ -1,0 +1,87 @@
+(ns epub-app.mobile.screens.search
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            [cljd.flutter :as f]
+            [epub-app.mobile.widgets.keyboard :as kb]
+            [epub-app.state.store :as store]
+            [epub-app.theme :as t]
+            [epub-app.widgets.books :as books]
+            [epub-app.widgets.ui :as ui]))
+
+(defn- matches [state query]
+  (filterv #(books/matches-query? % query) (:library state)))
+
+(defn- dismiss-keyboard! []
+  (kb/dismiss!)
+  nil)
+
+(defn app-bar []
+  (m/AppBar
+   .elevation 0.0
+   .scrolledUnderElevation 0.0
+   .backgroundColor t/bg
+   .foregroundColor t/ink
+   .surfaceTintColor m.Colors/transparent
+   .automaticallyImplyLeading false
+   .title nil
+   .leading (m/IconButton
+             .icon (m/Icon m.Icons/arrow_back)
+             .tooltip "Back"
+             .onPressed dismiss-keyboard!)))
+
+(defn- search-field [search-ctrl search-focus-node]
+  (m/Container
+   .width 72.0
+   .margin (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 16.0)
+   .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
+   .decoration (m/BoxDecoration
+                .color t/surface
+                .borderRadius (m.BorderRadius/circular t/radius-m)
+                .border (m/Border.all .color t/outline .width 1.0)
+                .boxShadow (t/card-shadow))
+   .child
+   (mgl/MongolTextField
+    .controller search-ctrl
+    .focusNode search-focus-node
+    .maxLines 1
+    .style (t/mongol-style :size 16.0)
+    .decoration (m/InputDecoration
+                 .hintText "Search"
+                 .border m.InputBorder/none
+                 .hintStyle (t/mongol-style :size 16.0 :color t/ink-faint))
+    .onChanged (fn [txt] (store/set-library-search! (or txt "")) nil)
+    .onSubmitted (fn [_]
+                   (kb/dismiss!)
+                   nil))))
+
+(defn screen []
+  (f/widget
+   :context ctx
+   :managed [search-ctrl (m/TextEditingController.)
+             search-focus-node (m/FocusNode)]
+   :watch [state store/app-state]
+   :bg-watcher ([^m/TextEditingValue {v .-text} search-ctrl]
+                (store/set-library-search! (or v "")))
+   (let [q (or (:library-search-query state) "")
+         hits (matches state q)]
+     (kb/wrap
+      (m/Row
+       .crossAxisAlignment m.CrossAxisAlignment/stretch
+       .children
+       [(search-field search-ctrl search-focus-node)
+        (m/Expanded
+         .child
+         (m/GestureDetector
+          .behavior m.HitTestBehavior/opaque
+          .onTap (fn [] (kb/dismiss!) nil)
+          .child
+          (cond
+            (empty? q)
+            (ui/empty-state m.Icons/search "Search the library")
+            (empty? hits)
+            (ui/empty-state m.Icons/search_off "No matching books")
+            :else
+            (m/ListView
+             .scrollDirection m.Axis/horizontal
+             .padding (m.EdgeInsets/fromLTRB 12.0 8.0 20.0 8.0)
+             .children (vec (map #(books/library-card ctx %) hits))))))])))))

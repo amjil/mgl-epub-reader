@@ -3,12 +3,50 @@
             [cljd.flutter :as f]
             [epub-app.mobile.screens.library :as library]
             [epub-app.mobile.screens.reader :as reader]
+            [epub-app.mobile.screens.search :as search]
+            [epub-app.mobile.screens.settings :as settings]
+            [epub-app.mobile.widgets.nav :as nav]
+            [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
-            [epub-app.theme :as t]))
+            [epub-app.theme :as t]
+            [virtual-keyboard.input-control :as input-control]))
+
+(defn- tab-index [tab]
+  (case tab
+    :search 1
+    :settings 2
+    0))
+
+(defn- shell [state kb-open?]
+  (let [tab (or (:mobile-tab state) :library)]
+    (m/Scaffold
+     .backgroundColor t/bg
+     .resizeToAvoidBottomInset false
+     .appBar (when kb-open? (search/app-bar))
+     .body
+     (m/SafeArea
+      .top (not kb-open?)
+      .bottom false
+      .child
+      (m/IndexedStack
+       .index (int (tab-index tab))
+       .children
+       [(library/screen)
+        (search/screen)
+        (settings/screen)]))
+     .bottomNavigationBar (when-not kb-open? (nav/bar tab))
+     .floatingActionButton
+     (when (and (= tab :library) (not kb-open?))
+       (m/FloatingActionButton
+        .backgroundColor t/primary
+        .foregroundColor m.Colors/white
+        .onPressed (fn [] (core/pick-and-import!))
+        .child (m/Icon m.Icons/add))))))
 
 (defn app []
   (f/widget
-   :watch [state store/app-state]
+   :watch [state store/app-state
+           kb-open? input-control/visible]
    (m/MaterialApp
     .title "MGL EPUB"
     .debugShowCheckedModeBanner false
@@ -16,4 +54,4 @@
     .home
     (if (:book state)
       (reader/screen)
-      (library/screen)))))
+      (shell state kb-open?)))))

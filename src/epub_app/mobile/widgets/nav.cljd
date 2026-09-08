@@ -1,0 +1,49 @@
+(ns epub-app.mobile.widgets.nav
+  "Icon-only bottom navigation for the mobile shell."
+  (:require ["package:flutter/material.dart" :as m]
+            [epub-app.state.store :as store]
+            [epub-app.theme :as t]))
+
+(def items
+  [{:id :library :icon m.Icons/menu_book}
+   {:id :search :icon m.Icons/search}
+   {:id :settings :icon m.Icons/tune}])
+
+(defn- nav-item [{:keys [id icon]} selected]
+  (let [active? (= id selected)]
+    (m/Expanded
+     .child
+     (m/InkWell
+      .onTap (fn []
+               (when-not (= id selected)
+                 (when-let [focus (.-primaryFocus m/FocusManager.instance)]
+                   (.unfocus focus))
+                 (store/set-mobile-tab! id))
+               nil)
+      .child
+      (m/AnimatedContainer
+       .duration (dart:core/Duration. .milliseconds 160)
+       .color (if active? t/primary-soft (t/fade t/surface 0.0))
+       .child
+       (m/Center
+        .child
+        (m/Icon icon
+                .size 24.0
+                .color (if active? t/primary t/ink-muted))))))))
+
+(defn bar [selected]
+  (m/Material
+   .color t/surface
+   .child
+   (m/SafeArea
+    .top false
+    .child
+    (m/Container
+     .height t/bottom-nav-height
+     .decoration (m/BoxDecoration
+                  .border (m/Border .top (m/BorderSide .color t/outline .width 1.0)))
+     .child
+     (m/Row
+      .crossAxisAlignment m.CrossAxisAlignment/stretch
+      .children
+      (mapv #(nav-item % selected) items))))))
