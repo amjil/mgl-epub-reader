@@ -121,7 +121,7 @@
            .fit m.StackFit/expand
            .children
            (filterv some?
-                    [(page/view state size)
+                    [(page/view state size :swipeable? false)
                      (m/Positioned
                       .top 0.0 .bottom 0.0 .left 0.0
                       .child (edge-hit :left prev!))

@@ -41,11 +41,17 @@
     (ui/empty-state m.Icons/filter_none "No books in this filter")
 
     :else
-    (m/ListView
+    (m/SingleChildScrollView
      .scrollDirection m.Axis/horizontal
-     .padding (m.EdgeInsets/fromLTRB 12.0 8.0 20.0 8.0)
-     .children (vec (map #(books/library-card ctx %)
-                         (books/filtered-books state))))))
+     .padding (m.EdgeInsets/fromLTRB 16.0 16.0 24.0 16.0)
+     .child
+     (m/Wrap
+      .direction m.Axis/vertical
+      .spacing 16.0
+      .runSpacing 20.0
+      .children (vec (map #(books/library-card ctx %
+                                               :margin (m.EdgeInsets/zero))
+                          (books/filtered-books state)))))))
 
 (defn screen []
   (f/widget

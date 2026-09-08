@@ -2,6 +2,7 @@
   "Shared paginated page view used by mobile and desktop readers."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mgl_epub_reader/mgl_epub_reader.dart" :as epub]
+            [cljd.flutter :as f]
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]))
 
@@ -47,21 +48,60 @@
      .onBlockLongPress (fn [block] (core/select-block! block))
      .onLinkTap (fn [href] (core/open-link! href)))))
 
-(defn view [state size]
+(defn- on-page-changed [i]
+  (when (not= i (:page @store/app-state))
+    (core/go-to-page! i))
+  nil)
+
+(defn- abs [n]
+  (if (neg? n) (- n) n))
+
+(defn- sync-page! [ctrl page]
+  (when (.-hasClients ctrl)
+    (let [pos (.-position ctrl)
+          scrolling? (and (.-hasPixels pos)
+                          (.-value (.-isScrollingNotifier pos)))]
+      (when-not scrolling?
+        (let [cur (or (.-page ctrl) (double page))
+              target (double page)
+              delta (abs (- cur target))]
+          (cond
+            (< delta 0.01) nil
+            (> delta 1.5) (.jumpToPage ctrl page)
+            :else (.animateToPage ctrl page
+                                  .duration (dart:core/Duration. .milliseconds 320)
+                                  .curve m.Curves/easeOutCubic))))))
+  nil)
+
+(defn- paged-reader [state size pages page rtl? swipeable?]
+  (f/widget
+   :managed [ctrl (m/PageController. .initialPage (int page))]
+   (do
+     (.addPostFrameCallback
+      m.WidgetsBinding/instance
+      (fn [_] (sync-page! ctrl (int page))))
+     (m/PageView.builder
+      .controller ctrl
+      .reverse rtl?
+      .allowImplicitScrolling true
+      .physics (if swipeable?
+                 (m/PageScrollPhysics.)
+                 (m/NeverScrollableScrollPhysics.))
+      .itemCount (count pages)
+      .onPageChanged on-page-changed
+      .itemBuilder
+      (fn [_ i]
+        (page-view (nth pages i) size state))))))
+
+(defn view
+  [state size & {:keys [swipeable?] :or {swipeable? true}}]
   (let [pages (:pages state)
         n (count pages)
-        page (if (pos? n) (min (max (:page state) 0) (dec n)) 0)]
+        page (if (pos? n) (min (max (:page state) 0) (dec n)) 0)
+        ch-id (or (some-> (:chapter state) .-id) "")
+        rtl? (= :right-to-left (:reading-direction (:settings state)))]
     (if (empty? pages)
       (m/Center .child (m/CircularProgressIndicator.))
-      (let [cur (nth pages page)
-            prev (when (pos? page) (nth pages (dec page)))
-            nxt (when (< page (dec n)) (nth pages (inc page)))]
-        (m/Stack
-         .fit m.StackFit/expand
-         .children
-         (filterv some?
-                  [(when prev
-                     (m/Offstage .offstage true .child (page-view prev size state)))
-                   (page-view cur size state)
-                   (when nxt
-                     (m/Offstage .offstage true .child (page-view nxt size state)))]))))))
+      (m/KeyedSubtree
+       .key (m/ValueKey. (str ch-id "-" n "-" (core/viewport-key size) "-" rtl?))
+       .child (paged-reader state size pages page rtl? swipeable?)))))

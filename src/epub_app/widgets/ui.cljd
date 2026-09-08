@@ -4,6 +4,7 @@
    so pages are Rows and lists scroll horizontally."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
+            ["dart:ui" :as ui-core]
             [epub-app.theme :as t]))
 
 (defn gap-h [n] (m/SizedBox .width (double n)))
@@ -82,11 +83,26 @@
    .icon (m/Icon icon .color (if filled? t/primary color))
    .onPressed on-pressed))
 
+(defn frosted
+  "Gaussian glass panel so reader chrome lets page text show through."
+  [child & {:keys [opacity elevation]
+            :or {opacity 0.65 elevation 0.0}}]
+  (m/ClipRect
+   .child
+   (m/BackdropFilter
+    .filter (ui-core/ImageFilter.blur .sigmaX 12.0 .sigmaY 12.0)
+    .child
+    (m/Material
+     .elevation elevation
+     .color (t/fade t/surface opacity)
+     .child child))))
+
 (defn card-shell
-  [child & {:keys [width on-tap margin elevated?]
+  [child & {:keys [width height on-tap margin elevated?]
             :or {width 148.0}}]
   (m/Container
    .width width
+   .height height
    .margin (or margin (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 16.0))
    .clipBehavior m.Clip/antiAlias
    .decoration (m/BoxDecoration
@@ -117,10 +133,7 @@
    .right (when (= side :right) 0.0)
    .width width
    .child
-   (m/Material
-    .elevation 8.0
-    .color t/surface
-    .child child)))
+   (frosted child :elevation 8.0)))
 
 (defn v-slider [min-v max-v value on-change]
   (m/RotatedBox

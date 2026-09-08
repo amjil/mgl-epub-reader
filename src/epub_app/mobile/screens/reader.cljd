@@ -32,9 +32,7 @@
   (m/Positioned
    .top 0.0 .bottom 0.0 .left 0.0 .width 56.0
    .child
-   (m/Material
-    .color (t/fade t/surface 0.96)
-    .child
+   (ui/frosted
     (m/SafeArea
      .right false
      .child
@@ -74,9 +72,7 @@
   (m/Positioned
    .top 0.0 .bottom 0.0 .right 0.0 .width 56.0
    .child
-   (m/Material
-    .color (t/fade t/surface 0.96)
-    .child
+   (ui/frosted
     (m/SafeArea
      .left false
      .child
@@ -330,10 +326,9 @@
                   .left (if menu? 56.0 0.0)
                   .width 240.0
                   .child
-                  (m/Material
-                   .elevation 8.0
-                   .color t/surface
-                   .child (toc-list (or (some-> book .-toc) [])))))
+                  (ui/frosted
+                   (toc-list (or (some-> book .-toc) []))
+                   :elevation 8.0)))
                (when (:settings-visible ui-state) (settings-panel settings))
                (when (:search-visible ui-state) (search-panel (:search-results state)))
                (when (:bookmarks-visible ui-state) (bookmarks-panel (:bookmarks state)))
@@ -352,8 +347,7 @@
      (m/LayoutBuilder
       .builder
       (fn [_ constraints]
-        (let [size (m/Size. (.-maxWidth constraints) (.-maxHeight constraints))
-              rtl? (= :right-to-left (:reading-direction (:settings state)))]
+        (let [size (m/Size. (.-maxWidth constraints) (.-maxHeight constraints))]
           (page/schedule-paginate! state size)
           (m/GestureDetector
            .onTap (fn []
@@ -362,18 +356,6 @@
                       (core/clear-selection!)
                       (store/toggle-ui! :menu-visible)))
            .onDoubleTap (fn [] (core/add-bookmark!))
-           .onHorizontalDragEnd
-           (fn [details]
-             (let [v (or (.-primaryVelocity details) 0.0)]
-               (cond
-                 rtl?
-                 (cond
-                   (> v 200.0) (core/next-page!)
-                   (< v -200.0) (core/previous-page!))
-                 :else
-                 (cond
-                   (> v 200.0) (core/previous-page!)
-                   (< v -200.0) (core/next-page!)))))
            .child
            (m/Stack
             .children

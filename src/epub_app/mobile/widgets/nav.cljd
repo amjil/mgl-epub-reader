@@ -32,16 +32,23 @@
                 .color (if active? t/primary t/ink-muted))))))))
 
 (defn bar [selected]
-  (m/Material
-   .color t/surface
+  (m/SafeArea
+   .top false
    .child
-   (m/SafeArea
-    .top false
+   (m/Container
+    .height t/bottom-nav-height
+    .margin (m.EdgeInsets/fromLTRB 24.0 0.0 24.0 16.0)
+    .clipBehavior m.Clip/antiAlias
+    .decoration (m/BoxDecoration
+                 .color t/surface
+                 .borderRadius (m.BorderRadius/circular 32.0)
+                 .boxShadow [(m/BoxShadow
+                              .color (t/fade t/ink 0.08)
+                              .blurRadius 20.0
+                              .offset (m/Offset. 0.0 8.0))])
     .child
-    (m/Container
-     .height t/bottom-nav-height
-     .decoration (m/BoxDecoration
-                  .border (m/Border .top (m/BorderSide .color t/outline .width 1.0)))
+    (m/Material
+     .color m.Colors/transparent
      .child
      (m/Row
       .crossAxisAlignment m.CrossAxisAlignment/stretch

@@ -120,7 +120,8 @@
        .child (m/Icon m.Icons/star .color t/gold .size 16.0))
       (m/SizedBox.shrink))]))
 
-(defn library-card [ctx book]
+(defn library-card
+  [ctx book & {:keys [height margin] :or {height 220.0}}]
   (let [author (or (.-author book) "")]
     (ui/card-shell
      (m/Row
@@ -144,6 +145,8 @@
         .alignment m.Alignment/topCenter
         .child (book-menu ctx book))])
      :width 196.0
+     :height height
+     :margin margin
      :on-tap (fn []
                (core/open-library-book! (.-id book))
                nil))))
