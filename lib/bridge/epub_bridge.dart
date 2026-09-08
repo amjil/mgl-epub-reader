@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../annotation/annotation.dart';
 import '../engine/epub_engine.dart';
 import '../epub/epub_source.dart';
@@ -45,11 +47,7 @@ class EpubBridge {
   Future<List<LibraryBook>> listBooks() => books.list();
 
   Future<LibraryBook> importPath(String path) async {
-    final parsed = await engine.openSource(FileEpubSource(path));
-    final cover = await engine.loadCoverBytes();
-    final row = await books.importFile(path, parsed, coverBytes: cover);
-    engine.close();
-    return row;
+    return importBytes(await File(path).readAsBytes());
   }
 
   Future<LibraryBook> importBytes(List<int> bytes) async {
@@ -65,7 +63,13 @@ class EpubBridge {
     if (row == null) {
       throw StateError('Unknown book $id');
     }
-    final book = await engine.openSource(FileEpubSource(row.path));
+    final file = File(row.path);
+    if (!await file.exists()) {
+      throw StateError(
+        'Book file is missing. Import the EPUB again.\n${file.path}',
+      );
+    }
+    final book = await engine.openSource(FileEpubSource(file.path));
     await books.touch(id);
     return book;
   }

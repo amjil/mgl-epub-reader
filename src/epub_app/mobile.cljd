@@ -11,11 +11,14 @@
             [epub-app.theme :as t]
             [virtual-keyboard.input-control :as input-control]))
 
-(defn- tab-index [tab]
+(defn- tab-body [tab]
   (case tab
-    :search 1
-    :settings 2
-    0))
+    :search (search/screen)
+    :settings (settings/screen)
+    (library/screen)))
+
+(defn- opening? [state]
+  (contains? #{:loading-book :loading-chapter} (:status state)))
 
 (defn- shell [state kb-open?]
   (let [tab (or (:mobile-tab state) :library)]
@@ -28,30 +31,38 @@
       .top (not kb-open?)
       .bottom false
       .child
-      (m/IndexedStack
-       .index (int (tab-index tab))
+      (m/Stack
+       .fit m.StackFit/expand
        .children
-       [(library/screen)
-        (search/screen)
-        (settings/screen)]))
+       [(tab-body tab)
+        (if (opening? state)
+          (m/ModalBarrier
+           .dismissible false
+           .color (t/fade t/ink 0.18))
+          (m/SizedBox.shrink))
+        (if (opening? state)
+          (m/Center .child (m/CircularProgressIndicator.))
+          (m/SizedBox.shrink))]))
      .bottomNavigationBar (when-not kb-open? (nav/bar tab))
      .floatingActionButton
      (when (and (= tab :library) (not kb-open?))
        (m/FloatingActionButton
         .backgroundColor t/primary
         .foregroundColor m.Colors/white
-        .onPressed (fn [] (core/pick-and-import!))
+        .onPressed (fn [] (core/pick-and-import!) nil)
         .child (m/Icon m.Icons/add))))))
 
-(defn app []
+(defn- root []
   (f/widget
    :watch [state store/app-state
            kb-open? input-control/visible]
-   (m/MaterialApp
-    .title "MGL EPUB"
-    .debugShowCheckedModeBanner false
-    .theme t/app-theme
-    .home
-    (if (:book state)
-      (reader/screen)
-      (shell state kb-open?)))))
+   (if (:book state)
+     (reader/screen)
+     (shell state kb-open?))))
+
+(defn app []
+  (m/MaterialApp
+   .title "MGL EPUB"
+   .debugShowCheckedModeBanner false
+   .theme t/app-theme
+   .home (root)))

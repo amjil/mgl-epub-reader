@@ -134,3 +134,41 @@
      .max max-v
      .value value
      .onChanged on-change))))
+
+(defn- latin-style [size color]
+  (m/TextStyle
+   .fontFamily "Courier"
+   .fontFamilyFallback #dart ^String ["Menlo" "monospace" "Courier New"]
+   .fontSize size
+   .height 1.35
+   .color color))
+
+(defn error-banner
+  "Horizontal Latin error so Dart exceptions stay readable in a Mongol UI."
+  [msg on-dismiss]
+  (m/Positioned
+   .left 12.0 .right 12.0 .bottom 12.0
+   .child
+   (m/Material
+    .color t/danger
+    .elevation 8.0
+    .borderRadius (m.BorderRadius/circular t/radius-s)
+    .child
+    (m/ConstrainedBox
+     .constraints (m/BoxConstraints .maxHeight 240.0)
+     .child
+     (m/Padding
+      .padding (m.EdgeInsets/fromLTRB 12.0 8.0 4.0 12.0)
+      .child
+      (m/Row
+       .crossAxisAlignment m.CrossAxisAlignment/start
+       .children
+       [(m/Expanded
+         .child
+         (m/SingleChildScrollView
+          .child
+          (m/SelectableText (or msg "")
+                            .style (latin-style 13.0 m.Colors/white))))
+        (m/IconButton
+         .icon (m/Icon m.Icons/close .color m.Colors/white .size 20.0)
+         .onPressed (fn [] (when on-dismiss (on-dismiss)) nil))]))))))

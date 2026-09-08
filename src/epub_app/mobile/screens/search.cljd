@@ -71,17 +71,19 @@
        [(search-field search-ctrl search-focus-node)
         (m/Expanded
          .child
-         (m/GestureDetector
-          .behavior m.HitTestBehavior/opaque
-          .onTap (fn [] (kb/dismiss!) nil)
-          .child
-          (cond
-            (empty? q)
-            (ui/empty-state m.Icons/search "Search the library")
-            (empty? hits)
-            (ui/empty-state m.Icons/search_off "No matching books")
-            :else
-            (m/ListView
-             .scrollDirection m.Axis/horizontal
-             .padding (m.EdgeInsets/fromLTRB 12.0 8.0 20.0 8.0)
-             .children (vec (map #(books/library-card ctx %) hits))))))])))))
+         (cond
+           (empty? q)
+           (m/GestureDetector
+            .behavior m.HitTestBehavior/opaque
+            .onTap dismiss-keyboard!
+            .child (ui/empty-state m.Icons/search "Search the library"))
+           (empty? hits)
+           (m/GestureDetector
+            .behavior m.HitTestBehavior/opaque
+            .onTap dismiss-keyboard!
+            .child (ui/empty-state m.Icons/search_off "No matching books"))
+           :else
+           (m/ListView
+            .scrollDirection m.Axis/horizontal
+            .padding (m.EdgeInsets/fromLTRB 12.0 8.0 20.0 8.0)
+            .children (vec (map #(books/library-card ctx %) hits)))))])))))

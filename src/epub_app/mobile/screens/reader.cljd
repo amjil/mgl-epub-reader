@@ -347,48 +347,41 @@
    (m/Scaffold
     .backgroundColor t/bg
     .body
-    (m/LayoutBuilder
-     .builder
-     (fn [_ constraints]
-       (let [size (m/Size. (.-maxWidth constraints) (.-maxHeight constraints))
-             rtl? (= :right-to-left (:reading-direction (:settings state)))]
-         (page/schedule-paginate! state size)
-         (m/GestureDetector
-          .onTap (fn []
-                   (store/set-highlight! nil)
-                   (if (:selection state)
-                     (core/clear-selection!)
-                     (store/toggle-ui! :menu-visible)))
-          .onDoubleTap (fn [] (core/add-bookmark!))
-          .onHorizontalDragEnd
-          (fn [details]
-            (let [v (or (.-primaryVelocity details) 0.0)]
-              (cond
-                rtl?
-                (cond
-                  (> v 200.0) (core/next-page!)
-                  (< v -200.0) (core/previous-page!))
-                :else
-                (cond
-                  (> v 200.0) (core/previous-page!)
-                  (< v -200.0) (core/next-page!)))))
-          .child
-          (m/Stack
-           .children
-           [(page/view state size)
-            (m/Positioned
-             .top 0.0 .bottom 0.0 .right 0.0 .width 4.0
-             .child (ui/v-progress (or (:progress state) 0.0)))
-            (overlay state)
-            (if (:error state)
-              (m/Positioned
-               .bottom 24.0 .left 24.0 .right 24.0
-               .child
-               (m/Material
-                .color t/danger
-                .child
-                (m/Padding
-                 .padding (m.EdgeInsets/all 12.0)
-                 .child
-                 (ui/text (:error state) {:color m.Colors/white}))))
-              (m/SizedBox.shrink))]))))))))
+    (m/SafeArea
+     .child
+     (m/LayoutBuilder
+      .builder
+      (fn [_ constraints]
+        (let [size (m/Size. (.-maxWidth constraints) (.-maxHeight constraints))
+              rtl? (= :right-to-left (:reading-direction (:settings state)))]
+          (page/schedule-paginate! state size)
+          (m/GestureDetector
+           .onTap (fn []
+                    (store/set-highlight! nil)
+                    (if (:selection state)
+                      (core/clear-selection!)
+                      (store/toggle-ui! :menu-visible)))
+           .onDoubleTap (fn [] (core/add-bookmark!))
+           .onHorizontalDragEnd
+           (fn [details]
+             (let [v (or (.-primaryVelocity details) 0.0)]
+               (cond
+                 rtl?
+                 (cond
+                   (> v 200.0) (core/next-page!)
+                   (< v -200.0) (core/previous-page!))
+                 :else
+                 (cond
+                   (> v 200.0) (core/previous-page!)
+                   (< v -200.0) (core/next-page!)))))
+           .child
+           (m/Stack
+            .children
+            [(page/view state size)
+             (m/Positioned
+              .top 0.0 .bottom 0.0 .right 0.0 .width 4.0
+              .child (ui/v-progress (or (:progress state) 0.0)))
+             (overlay state)
+             (if (:error state)
+               (ui/error-banner (:error state) store/clear-error!)
+               (m/SizedBox.shrink))])))))))))

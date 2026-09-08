@@ -140,9 +140,13 @@
          (m/SizedBox.shrink))
        (ui/gap-h 6)
        (ui/v-progress (.-progress book))
-       (book-menu ctx book)])
+       (m/Align
+        .alignment m.Alignment/topCenter
+        .child (book-menu ctx book))])
      :width 196.0
-     :on-tap (fn [] (core/open-library-book! (.-id book))))))
+     :on-tap (fn []
+               (core/open-library-book! (.-id book))
+               nil))))
 
 (defn filter-rail [selected]
   (m/Column

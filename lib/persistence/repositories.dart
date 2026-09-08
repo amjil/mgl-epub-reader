@@ -52,7 +52,12 @@ class BookRepository {
       final bt = b.lastOpenedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       return bt.compareTo(at);
     });
-    return rows.map(_fromRow).toList();
+    final dir = await _booksDir();
+    final out = <LibraryBook>[];
+    for (final row in rows) {
+      out.add(await _resolved(_fromRow(row), dir));
+    }
+    return out;
   }
 
   Future<Directory> _booksDir() async {
@@ -60,6 +65,88 @@ class BookRepository {
     final dir = Directory(p.join(support.path, 'mgl_epub_reader', 'books'));
     await dir.create(recursive: true);
     return dir;
+  }
+
+  /// Resolve a stored path (relative or stale absolute) against the current
+  /// books directory. iOS container UUIDs change; picker temp files vanish.
+  File locateBookFile(Directory dir, String stored, String id) {
+    return _locate(
+      dir,
+      stored,
+      fallbacks: ['$id.epub'],
+    );
+  }
+
+  File? locateCoverFile(Directory dir, String? stored, String id) {
+    if (stored == null || stored.isEmpty) return null;
+    final file = _locate(
+      dir,
+      stored,
+      fallbacks: [
+        '$id.cover.jpg',
+        '$id.cover.png',
+        '$id.cover.gif',
+        '$id.cover.webp',
+      ],
+    );
+    return file.existsSync() ? file : null;
+  }
+
+  File _locate(
+    Directory dir,
+    String stored, {
+    required List<String> fallbacks,
+  }) {
+    final candidates = <String>[
+      stored,
+      if (!p.isAbsolute(stored)) p.join(dir.path, stored),
+      p.join(dir.path, p.basename(stored)),
+      ...fallbacks.map((name) => p.join(dir.path, name)),
+    ];
+    for (final candidate in candidates) {
+      final file = File(candidate);
+      if (file.existsSync()) return file;
+      try {
+        final resolved = File(file.resolveSymbolicLinksSync());
+        if (resolved.existsSync()) return resolved;
+      } on FileSystemException {
+        // ignore dangling / inaccessible links
+      }
+    }
+    final expected = p.isAbsolute(stored)
+        ? p.join(dir.path, p.basename(stored))
+        : p.join(dir.path, stored);
+    return File(expected);
+  }
+
+  Future<LibraryBook> _resolved(LibraryBook book, Directory dir) async {
+    final epub = locateBookFile(dir, book.path, book.id);
+    final coverFile = locateCoverFile(dir, book.cover, book.id);
+    final epubStored = p.basename(epub.path);
+    final coverStored = coverFile == null ? book.cover : p.basename(coverFile.path);
+    final changed = epubStored != book.path || coverStored != book.cover;
+    if (changed && epub.existsSync()) {
+      await (db.update(db.storedBooks)..where((t) => t.id.equals(book.id)))
+          .write(
+        StoredBooksCompanion(
+          path: Value(epubStored),
+          cover: Value(coverStored),
+        ),
+      );
+    }
+    return LibraryBook(
+      id: book.id,
+      title: book.title,
+      author: book.author,
+      cover: coverFile?.path,
+      path: epub.path,
+      language: book.language,
+      progress: book.progress,
+      lastPosition: book.lastPosition,
+      lastOpenedAt: book.lastOpenedAt,
+      favorite: book.favorite,
+      finished: book.finished,
+    );
   }
 
   Future<LibraryBook> importFile(
@@ -83,20 +170,21 @@ class BookRepository {
     final id = book.id.isNotEmpty
         ? _safeId(book.id)
         : sha1.convert(bytes).toString();
-    final dest = p.join(dir.path, '$id.epub');
+    final destName = '$id.epub';
+    final dest = p.join(dir.path, destName);
     await File(dest).writeAsBytes(bytes, flush: true);
-    String? coverPath;
+    String? coverName;
     if (coverBytes != null && coverBytes.isNotEmpty) {
-      coverPath = p.join(dir.path, '$id.cover${_coverExt(book.cover)}');
-      await File(coverPath).writeAsBytes(coverBytes, flush: true);
+      coverName = '$id.cover${_coverExt(book.cover)}';
+      await File(p.join(dir.path, coverName)).writeAsBytes(coverBytes, flush: true);
     }
     await db.into(db.storedBooks).insertOnConflictUpdate(
           StoredBooksCompanion(
             id: Value(id),
             title: Value(book.title),
             author: Value(book.authors.isEmpty ? null : book.authors.join(', ')),
-            cover: Value(coverPath),
-            path: Value(dest),
+            cover: Value(coverName),
+            path: Value(destName),
             language: Value(book.language),
             lastOpenedAt: Value(DateTime.now()),
           ),
@@ -107,7 +195,8 @@ class BookRepository {
   Future<LibraryBook?> byId(String id) async {
     final row = await (db.select(db.storedBooks)..where((t) => t.id.equals(id)))
         .getSingleOrNull();
-    return row == null ? null : _fromRow(row);
+    if (row == null) return null;
+    return _resolved(_fromRow(row), await _booksDir());
   }
 
   Future<void> touch(

@@ -41,15 +41,18 @@
         (when file
           (store/set-status! :loading-book)
           (try
-            (let [row (await (.importPath (bridge) (.-path file)))]
+            (let [bytes (await (.readAsBytes file))
+                  row (await (.importBytes (bridge) bytes))]
               (await (refresh-library!))
               (store/set-status! :idle)
               row)
-            (catch Exception e
+            (catch Object e
               (store/set-error! (str e))
+              (store/set-status! :error)
               nil))))
-      (catch Exception e
+      (catch Object e
         (store/set-error! (str e))
+        (store/set-status! :error)
         nil))))
 
 (defn- page-index-for [pages position]
@@ -145,6 +148,12 @@
        (store/set-error! (str e))
        nil))))
 
+(defn- format-error [e]
+  (let [msg (try (.toString e) (catch Object _ (str e)))
+        st (try (str (.-stackTrace e)) (catch Object _ ""))]
+    (cond-> msg
+      (seq st) (str "\n" st))))
+
 (defn open-library-book! [id]
   (store/set-status! :loading-book)
   (store/clear-error!)
@@ -162,9 +171,12 @@
       (when chapter-id
         (await (open-chapter! chapter-id :progress)))
       book)
-    (catch Exception e
-      (store/set-error! (str e))
-      nil)))
+    (catch Object e
+      (let [msg (format-error e)]
+        (dart:core/print (str "open-library-book! failed: " msg))
+        (store/set-error! msg)
+        (store/set-status! :error)
+        nil))))
 
 (defn go-to-page! [page]
   (let [pages (:pages @store/app-state)

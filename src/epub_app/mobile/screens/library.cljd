@@ -32,6 +32,21 @@
         .child (ui/text (:error state) {:color t/danger}))
        (m/SizedBox.shrink))])))
 
+(defn- books-pane [state ctx]
+  (cond
+    (empty? (:library state))
+    (empty-library state)
+
+    (empty? (books/filtered-books state))
+    (ui/empty-state m.Icons/filter_none "No books in this filter")
+
+    :else
+    (m/ListView
+     .scrollDirection m.Axis/horizontal
+     .padding (m.EdgeInsets/fromLTRB 12.0 8.0 20.0 8.0)
+     .children (vec (map #(books/library-card ctx %)
+                         (books/filtered-books state))))))
+
 (defn screen []
   (f/widget
    :watch [state store/app-state]
@@ -42,12 +57,10 @@
     [(filter-strip state)
      (m/Expanded
       .child
-      (if (empty? (:library state))
-        (empty-library state)
-        (let [books-list (books/filtered-books state)]
-          (if (empty? books-list)
-            (ui/empty-state m.Icons/filter_none "No books in this filter")
-            (m/ListView
-             .scrollDirection m.Axis/horizontal
-             .padding (m.EdgeInsets/fromLTRB 12.0 8.0 20.0 8.0)
-             .children (vec (map #(books/library-card ctx %) books-list)))))))])))
+      (m/Stack
+       .fit m.StackFit/expand
+       .children
+       [(books-pane state ctx)
+        (if (:error state)
+          (ui/error-banner (:error state) store/clear-error!)
+          (m/SizedBox.shrink))]))])))
