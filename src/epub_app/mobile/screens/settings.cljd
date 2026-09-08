@@ -1,67 +1,119 @@
 (ns epub-app.mobile.screens.settings
   (:require ["package:flutter/material.dart" :as m]
             [cljd.flutter :as f]
-            [epub-app.state.store :as store]
-            [epub-app.theme :as t]
-            [epub-app.widgets.ui :as ui]))
+            [components.setting :as setting]
+            [epub-app.state.store :as store]))
 
-(defn- setting-pills [value options on-pick]
-  (m/Column
-   .mainAxisSize m.MainAxisSize/min
-   .children
-   (mapv (fn [[id label]]
-           (ui/pill {:label label
-                      :active? (= id value)
-                      :on-tap #(on-pick id)}))
-         options)))
+(def ^:private writing-modes
+  [[:vertical "vertical"]
+   [:horizontal "horizontal"]])
 
-(defn- labeled [label child]
-  (m/Row
-   .crossAxisAlignment m.CrossAxisAlignment/center
-   .children
-   [(ui/text label {:size 13.0 :color t/ink-muted})
-    (ui/gap-h 8)
-    child]))
+(def ^:private reading-dirs
+  [[:left-to-right "LTR"]
+   [:right-to-left "RTL"]])
+
+(def ^:private fonts
+  [["OyunQaganTig" "Oyun"]
+   ["MongolianBaiZheng" "BaiZheng"]])
+
+(def ^:private themes
+  [[:light "light"]
+   [:sepia "sepia"]
+   [:dark "dark"]
+   [:black "black"]])
+
+(defn- option-label [value options]
+  (or (some (fn [[id label]] (when (= id value) label)) options)
+      (str value)))
+
+(defn- cycle-value [value options]
+  (let [ids (mapv first options)
+        n (count ids)
+        idx (or (first (keep-indexed (fn [i id] (when (= id value) i)) ids)) -1)]
+    (nth ids (mod (inc idx) n))))
+
+(defn- clamp [v lo hi]
+  (double (max lo (min hi v))))
+
+(defn- step-btn [icon on-tap]
+  (m/GestureDetector
+   .onTap on-tap
+   .behavior m.HitTestBehavior/opaque
+   .child
+   (m/SizedBox
+    .width 24.0
+    .height 24.0
+    .child (m/Center .child (m/Icon icon .size 18.0)))))
+
+(defn- stepper [on-dec on-inc]
+  (m/FittedBox
+   .fit m.BoxFit/scaleDown
+   .child
+   (m/Column
+    .mainAxisSize m.MainAxisSize/min
+    .children
+    [(step-btn m.Icons/remove on-dec)
+     (step-btn m.Icons/add on-inc)])))
 
 (defn screen []
   (f/widget
    :watch [state store/app-state]
-   (let [settings (:settings state)]
-     (m/SingleChildScrollView
+   (let [{:keys [font-size line-height writing-mode reading-direction font-family theme]}
+         (:settings state)]
+     (m/ListView
       .scrollDirection m.Axis/horizontal
-      .padding (m.EdgeInsets/all 16.0)
-      .child
-      (m/Row
-       .crossAxisAlignment m.CrossAxisAlignment/center
-       .children
-       [(ui/text "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠤᠯᠲᠠ" {:size 18.0 :weight m.FontWeight/bold})
-        (ui/gap-h 20)
-        (labeled "Font size"
-                 (ui/v-slider 14.0 36.0 (:font-size settings)
-                             (fn [v] (store/update-settings! :font-size v))))
-        (ui/gap-h 16)
-        (labeled "Line height"
-                 (ui/v-slider 1.2 2.4 (:line-height settings)
-                             (fn [v] (store/update-settings! :line-height v))))
-        (ui/gap-h 16)
-        (setting-pills (:writing-mode settings)
-                       [[:vertical "vertical"]
-                        [:horizontal "horizontal"]]
-                       #(store/update-settings! :writing-mode %))
-        (ui/gap-h 12)
-        (setting-pills (:reading-direction settings)
-                       [[:left-to-right "LTR"]
-                        [:right-to-left "RTL"]]
-                       #(store/update-settings! :reading-direction %))
-        (ui/gap-h 12)
-        (setting-pills (:font-family settings)
-                       [["OyunQaganTig" "Oyun"]
-                        ["MongolianBaiZheng" "BaiZheng"]]
-                       #(store/update-settings! :font-family %))
-        (ui/gap-h 12)
-        (setting-pills (:theme settings)
-                       [[:light "light"]
-                        [:sepia "sepia"]
-                        [:dark "dark"]
-                        [:black "black"]]
-                       #(store/update-settings! :theme %))])))))
+      .children
+      [(setting/settings-section
+        "Type"
+        [{:title "Font size"
+          :subtitle (.toStringAsFixed (double font-size) 0)
+          :leading m.Icons/format_size
+          :trailing (stepper
+                     (fn []
+                       (store/update-settings! :font-size (clamp (- font-size 1.0) 14.0 36.0))
+                       nil)
+                     (fn []
+                       (store/update-settings! :font-size (clamp (+ font-size 1.0) 14.0 36.0))
+                       nil))}
+         {:title "Line height"
+          :subtitle (.toStringAsFixed (double line-height) 1)
+          :leading m.Icons/format_line_spacing
+          :trailing (stepper
+                     (fn []
+                       (store/update-settings! :line-height (clamp (- line-height 0.1) 1.2 2.4))
+                       nil)
+                     (fn []
+                       (store/update-settings! :line-height (clamp (+ line-height 0.1) 1.2 2.4))
+                       nil))}
+         {:title "Font"
+          :subtitle (option-label font-family fonts)
+          :leading m.Icons/font_download_outlined
+          :show-arrow? true
+          :on-tap (fn []
+                    (store/update-settings! :font-family (cycle-value font-family fonts))
+                    nil)}])
+       (setting/settings-section
+        "Reading"
+        [{:title "Writing mode"
+          :subtitle (option-label writing-mode writing-modes)
+          :leading m.Icons/view_agenda_outlined
+          :show-arrow? true
+          :on-tap (fn []
+                    (store/update-settings! :writing-mode (cycle-value writing-mode writing-modes))
+                    nil)}
+         {:title "Direction"
+          :subtitle (option-label reading-direction reading-dirs)
+          :leading m.Icons/swap_horiz
+          :show-arrow? true
+          :on-tap (fn []
+                    (store/update-settings! :reading-direction (cycle-value reading-direction reading-dirs))
+                    nil)}])
+       (setting/settings-section
+        "Theme"
+        [{:title "Theme"
+          :subtitle (option-label theme themes)
+          :leading m.Icons/palette_outlined
+          :show-arrow? true
+          :on-tap (fn []
+                    (store/update-settings! :theme (cycle-value theme themes))
+                    nil)}])]))))
