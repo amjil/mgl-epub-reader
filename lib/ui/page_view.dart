@@ -143,13 +143,17 @@ class MglPageView extends StatelessWidget {
       );
     } else {
       final span = _rich(block);
+      final gap = blockAxisGap(config);
       child = vertical
           ? Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: MongolText.rich(span),
+              padding: EdgeInsets.only(right: gap),
+              child: MongolText.rich(
+                span,
+                textAlign: MongolTextAlign.top,
+              ),
             )
           : Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: EdgeInsets.only(bottom: gap),
               child: Text.rich(span),
             );
     }
@@ -372,7 +376,11 @@ class _ImageBlockState extends State<_ImageBlock> {
       child: widget.vertical
           ? MongolText(
               widget.alt ?? 'image',
-              style: TextStyle(color: widget.colors.secondary),
+              style: TextStyle(
+                color: widget.colors.secondary,
+                height: 1.0,
+                leadingDistribution: TextLeadingDistribution.even,
+              ),
             )
           : Text(
               widget.alt ?? 'image',

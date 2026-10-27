@@ -223,7 +223,7 @@ double _extentOf(MglBlock block, ReaderLayoutConfig config) {
       text: _spanFor(block, config),
       textAlign: MongolTextAlign.top,
     )..layout(maxHeight: config.contentSize.height);
-    return painter.width + 12;
+    return painter.width + blockAxisGap(config);
   }
   final painter = TextPainter(
     text: _spanFor(block, config),
@@ -231,7 +231,7 @@ double _extentOf(MglBlock block, ReaderLayoutConfig config) {
         ? TextDirection.rtl
         : TextDirection.ltr,
   )..layout(maxWidth: config.contentSize.width);
-  return painter.height + 12;
+  return painter.height + blockAxisGap(config);
 }
 
 _Split? _split(_Item item, ReaderLayoutConfig config, double remaining) {
