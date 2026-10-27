@@ -1,16 +1,17 @@
 (ns epub-app.desktop.screens.library
-  "桌面端图书馆界面 - 现代化设计"
+  "Desktop library interface - modern design with Traditional Mongolian support"
   (:require ["package:flutter/material.dart" :as m]
             ["package:flutter/services.dart" :as s]
             [cljd.flutter :as f]
             [epub-app.desktop.shortcuts :as shortcuts]
+            [epub-app.reader-settings :as rs]
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]
             [epub-app.widgets.books :as books]
             [epub-app.widgets.ui :as ui]))
 
-;; 改进的图书卡片
+;; Improved book card
 (defn- book-card [ctx book]
   (f/widget
    :managed [!hover (atom false) :dispose nil]
@@ -38,7 +39,7 @@
          title-block (m/Column
                       .crossAxisAlignment m.CrossAxisAlignment/start
                       .children
-                      [(ui/text (or (.-title book) "未命名")
+                      [(ui/text (or (.-title book) "ᠨᠡᠷᠡᠢᠳᠦᠭᠡᠢ")
                                 {:size 17.0 :weight m.FontWeight/w600 :max-lines 2})
                        (when (seq author)
                          (m/Padding
@@ -72,7 +73,32 @@
         :padding 16.0
         :on-tap (fn [] (core/open-library-book! (.-id book)))))))))
 
-;; 图书馆侧边栏
+;; Library sidebar
+
+(defn- rail-action-btn [{:keys [bg icon icon-color label label-color shadow? on-tap]}]
+  (m/Container
+   .decoration (m/BoxDecoration
+                .color bg
+                .borderRadius (m/BorderRadius.circular t/radius-m)
+                .boxShadow (when shadow? t/shadow-sm))
+   .child
+   (m/Material
+    .color m.Colors/transparent
+    .child
+    (m/InkWell
+     .onTap on-tap
+     .borderRadius (m/BorderRadius.circular t/radius-m)
+     .child
+     (m/Padding
+      .padding (m/EdgeInsets.symmetric .horizontal 12.0 .vertical 12.0)
+      .child
+      (m/Column
+       .mainAxisSize m.MainAxisSize/min
+       .children
+       [(m/Icon icon .color icon-color .size 26.0)
+        (ui/gap-v 4)
+        (t/mongol-label label :size 11.0 :color label-color :weight m.FontWeight/w500)]))))))
+
 (defn- library-rail [state]
   (m/Container
    .width 92.0
@@ -105,7 +131,7 @@
                  .color m.Colors/white
                  .size 32.0)
          (ui/gap-v 8)
-         (ui/text "ᠨᠣᠮ" {:size 20.0 :weight m.FontWeight/bold :color m.Colors/white})])))
+         (t/mongol-label "ᠨᠣᠮ" :size 20.0 :weight m.FontWeight/bold :color m.Colors/white)])))
      (ui/gap-v 8)
      (m/Expanded
       .child
@@ -115,32 +141,26 @@
      (m/Padding
       .padding (m/EdgeInsets.fromLTRB 10.0 8.0 10.0 20.0)
       .child
-      (m/Container
-       .decoration (m/BoxDecoration
-                    .color t/primary
-                    .borderRadius (m/BorderRadius.circular t/radius-m)
-                    .boxShadow t/shadow-sm)
-       .child
-       (m/Material
-        .color m.Colors/transparent
-        .child
-        (m/InkWell
-         .onTap (fn [] (core/pick-and-import!))
-         .borderRadius (m/BorderRadius.circular t/radius-m)
-         .child
-         (m/Padding
-          .padding (m/EdgeInsets.symmetric .horizontal 12.0 .vertical 12.0)
-          .child
-          (m/Column
-           .mainAxisSize m.MainAxisSize/min
-           .children
-           [(m/Icon m.Icons/add_rounded
-                    .color m.Colors/white
-                    .size 26.0)
-            (ui/gap-v 4)
-            (ui/text "导入" {:size 11.0 :color m.Colors/white :weight m.FontWeight/w500})]))))))])))
+      (m/Column
+       .mainAxisSize m.MainAxisSize/min
+       .children
+       [(rail-action-btn {:bg t/primary
+                          :icon m.Icons/add_rounded
+                          :icon-color m.Colors/white
+                          :label "ᠣᠷᠣᠭᠤᠯᠬᠤ"
+                          :label-color m.Colors/white
+                          :shadow? true
+                          :on-tap (fn [] (core/pick-and-import!))})
+        (ui/gap-v 6)
+        (rail-action-btn {:bg (t/surface-2)
+                          :icon m.Icons/settings_rounded
+                          :icon-color (t/ink-muted)
+                          :label "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ"
+                          :label-color (t/ink-muted)
+                          :shadow? false
+                          :on-tap (fn [] (store/toggle-ui! :settings-visible))})]))])))
 
-;; 空图书馆状态
+;; Empty library state
 (defn- empty-library [state]
   (m/Center
    .child
@@ -162,10 +182,10 @@
                              .size 70.0
                              .color t/primary)))
      (ui/gap-v 28)
-     (ui/text "欢迎使用蒙古文阅读器"
-              {:size 24.0 :weight m.FontWeight/bold})
+     (t/mongol-label "ᠮᠣᠩᠭᠤᠯ ᠨᠣᠮ ᠤᠩᠰᠢᠭᠴᠢ" 
+                     :size 24.0 :weight m.FontWeight/bold)
      (ui/gap-v 10)
-     (ui/text "点击左侧「导入」按钮或按 Cmd+O 导入 EPUB 图书"
+     (ui/text "Click 'Import' or press Cmd+O to add EPUB books"
               {:size 16.0 :color (t/ink-muted)})
      (ui/gap-v 20)
      (m/ElevatedButton
@@ -183,7 +203,7 @@
        .children
        [(m/Icon m.Icons/upload_file_rounded .color m.Colors/white .size 22.0)
         (ui/gap-h 8)
-        (ui/text "导入图书" {:color m.Colors/white :size 16.0 :weight m.FontWeight/w500})]))
+        (ui/text "Import Books" {:color m.Colors/white :size 16.0 :weight m.FontWeight/w500})]))
      (when (:error state)
        (m/Padding
         .padding (m/EdgeInsets.only .top 24.0)
@@ -197,6 +217,42 @@
                       .border (m/Border.all .color t/danger .width 1.0))
          .child (ui/text (:error state)
                          {:color t/danger :size 14.0}))))])))
+
+;; Global settings panel
+(defn- settings-panel [settings]
+  (m/Container
+   .width 520.0
+   .decoration (m/BoxDecoration
+                .color (t/surface)
+                .border (m/Border .left (m/BorderSide .color (t/outline) .width 1.0))
+                .boxShadow [(m/BoxShadow
+                             .color (t/fade (t/ink) 0.03)
+                             .blurRadius 12.0
+                             .offset (m/Offset. -2.0 0.0))])
+   .child
+   (m/SafeArea
+    .child
+    (m/Column
+     .children
+     [(m/Padding
+       .padding (m/EdgeInsets.fromLTRB 16.0 20.0 16.0 12.0)
+       .child
+       (m/Row
+        .children
+        [(t/mongol-label "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ" :size 20.0 :weight m.FontWeight/bold)
+         (m/Spacer)
+         (ui/icon-btn m.Icons/close_rounded
+                      (fn [] (store/set-ui! :settings-visible false))
+                      :size 22.0)]))
+      (ui/divider :margin (m/EdgeInsets.symmetric .horizontal 16.0))
+      (m/Expanded
+       .child
+       (rs/horizontal-list settings
+                           :group-config {:min-item-width 120.0
+                                          :max-item-width 150.0
+                                          :card-radius 12.0
+                                          :show-shadow false}
+                           :wheel-horizontal? true))]))))
 
 (defn screen []
   (f/widget
@@ -216,16 +272,36 @@
        (m/Row
         .crossAxisAlignment m.CrossAxisAlignment/stretch
         .children
-        [(library-rail state)
-         (m/Expanded
-          .child
-          (if (empty? (:library state))
-            (empty-library state)
-            (let [shown (books/filtered-books state)]
-              (if (empty? shown)
-                (ui/empty-state m.Icons/filter_list_off "未找到符合筛选条件的图书"
-                                :subtitle "尝试更换筛选选项")
-                (m/ListView
-                 .scrollDirection m.Axis/horizontal
-                 .padding (m/EdgeInsets.fromLTRB 24.0 20.0 32.0 20.0)
-                 .children (vec (map #(book-card ctx %) shown)))))))])))))))
+        (filterv some?
+                 [(library-rail state)
+                  (m/Expanded
+                   .child
+                   (if (empty? (:library state))
+                     (empty-library state)
+                     (let [shown (books/filtered-books state)]
+                       (if (empty? shown)
+                         (m/Center
+                          .child
+                          (m/Column
+                           .mainAxisSize m.MainAxisSize/min
+                           .children
+                           [(m/Container
+                             .width 68.0
+                             .height 68.0
+                             .decoration (m/BoxDecoration
+                                          .color (t/fade t/primary-soft 0.6)
+                                          .borderRadius (m/BorderRadius.circular t/radius-l))
+                             .child (m/Center
+                                     .child (m/Icon m.Icons/filter_list_off .size 36.0 .color t/primary)))
+                            (ui/gap-v 16)
+                            (t/mongol-label "ᠰᠢᠯᠭᠠᠭᠰᠠᠨ ᠨᠣᠮ ᠦᠭᠡᠢ"
+                                            :size 18.0 :weight m.FontWeight/w600)
+                            (ui/gap-v 6)
+                            (t/mongol-label "ᠰᠢᠯᠭᠠᠬᠤ ᠰᠣᠩᠭᠣᠬᠤ"
+                                            :size 14.0 :color (t/ink-muted))]))
+                         (m/ListView
+                          .scrollDirection m.Axis/horizontal
+                          .padding (m/EdgeInsets.fromLTRB 24.0 20.0 32.0 20.0)
+                          .children (vec (map #(book-card ctx %) shown)))))))
+                  (when (get-in state [:ui :settings-visible])
+                    (settings-panel (:settings state)))]))))))))

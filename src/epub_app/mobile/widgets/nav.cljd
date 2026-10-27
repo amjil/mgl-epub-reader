@@ -1,5 +1,5 @@
 (ns epub-app.mobile.widgets.nav
-  "Icon-only bottom navigation for the mobile shell."
+  "Icon-only bottom navigation for the mobile shell"
   (:require ["package:flutter/material.dart" :as m]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]))

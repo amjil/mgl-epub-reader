@@ -1,5 +1,5 @@
 (ns epub-app.widgets.books
-  "图书组件库 - 使用 mgl-components 共享组件"
+  "Book components library - using mgl-components shared components"
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
             ["dart:io" :as io]
@@ -10,10 +10,10 @@
             [epub-app.widgets.ui :as ui]))
 
 (def filters
-  [[:all "全部"]
-   [:recent "最近"]
-   [:favorites "收藏"]
-   [:finished "已读完"]])
+  [[:all "ᠪᠦᠬᠦ"]
+   [:recent "ᠰᠠᠶᠢᠬᠠᠨ"]
+   [:favorites "ᠬᠠᠳᠠᠭᠠᠯᠠᠭᠰᠠᠨ"]
+   [:finished "ᠤᠩᠰᠢᠭᠰᠠᠨ"]])
 
 (defn filtered-books [state]
   (let [books (:library state)]
@@ -30,7 +30,7 @@
     (and (seq q)
          (or (.contains title q) (.contains author q)))))
 
-;; 删除确认对话框
+;; Delete confirmation dialog
 (defn confirm-delete! [ctx book]
   (m/showDialog
    .context ctx
@@ -40,7 +40,7 @@
       .backgroundColor (t/surface)
       .shape (m/RoundedRectangleBorder
               .borderRadius (m/BorderRadius.circular t/radius-l))
-      .title (ui/text "确认删除?" {:size 18.0 :weight m.FontWeight/bold})
+      .title (t/mongol-label "ᠬᠠᠰᠤᠬᠤ ᠤᠤ?" :size 18.0 :weight m.FontWeight/bold)
       .content (m/Padding
                 .padding (m/EdgeInsets.symmetric .vertical 8.0)
                 .child (ui/text (or (.-title book) "")
@@ -48,7 +48,7 @@
       .actions
       [(m/TextButton
         .onPressed (fn [] (.pop (m/Navigator.of c)))
-        .child (ui/text "取消" {:color (t/ink-muted) :weight m.FontWeight/w500}))
+        .child (t/mongol-label "ᠦᠭᠡᠢ" :color (t/ink-muted) :weight m.FontWeight/w500))
        (m/ElevatedButton
         .onPressed (fn []
                      (.pop (m/Navigator.of c))
@@ -57,9 +57,9 @@
                 .backgroundColor t/danger
                 .foregroundColor m.Colors/white
                 .padding (m/EdgeInsets.symmetric .horizontal 16.0 .vertical 10.0))
-        .child (ui/text "删除" {:color m.Colors/white :weight m.FontWeight/w500}))]))))
+        .child (t/mongol-label "ᠬᠠᠰᠤᠬᠤ" :color m.Colors/white :weight m.FontWeight/w500))]))))
 
-;; 图书菜单 - 使用 components.menu
+;; Book menu - using components.menu
 (defn book-menu [ctx book]
   (menu/custom-popup-menu
    {:trigger-builder
@@ -78,23 +78,23 @@
     :border-radius t/radius-l
     :menu-width 300.0
     :items [{:type :item
-             :title (if (.-favorite book) "取消收藏" "收藏")
+             :title (if (.-favorite book) "ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ ᠴᠡᠭᠡᠷᠯᠡᠬᠦ" "ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ")
              :leading (if (.-favorite book) m.Icons/star_rounded m.Icons/star_outline_rounded)
              :leading-color t/accent
              :on-tap #(core/toggle-favorite! (.-id book) (not (.-favorite book)))}
             {:type :item
-             :title (if (.-finished book) "标记未读" "标记已读")
+             :title (if (.-finished book) "ᠤᠩᠰᠢᠭᠰᠠᠨ ᠦᠭᠡᠢ" "ᠤᠩᠰᠢᠭᠰᠠᠨ")
              :leading m.Icons/check_circle_outline_rounded
              :leading-color t/success
              :on-tap #(core/set-finished! (.-id book) (not (.-finished book)))}
             {:type :divider}
             {:type :item
-             :title "删除"
+             :title "ᠬᠠᠰᠤᠬᠤ"
              :leading m.Icons/delete_outline_rounded
              :leading-color t/danger
              :on-tap #(confirm-delete! ctx book)}]}))
 
-;; 封面占位符
+;; Cover placeholder
 (defn cover-placeholder
   [& {:keys [width height] :or {width 72.0 height 108.0}}]
   (m/Container
@@ -112,7 +112,7 @@
                           .color t/primary
                           .size (* width 0.45)))))
 
-;; 封面缩略图
+;; Cover thumbnail
 (defn cover-thumb
   [book & {:keys [width height] :or {width 72.0 height 108.0}}]
   (let [path (.-cover book)]
@@ -134,7 +134,7 @@
          .errorBuilder (fn [_ _ _] (cover-placeholder :width width :height height)))))
       (cover-placeholder :width width :height height))))
 
-;; 带徽章的封面
+;; Cover with badge
 (defn cover-with-badge
   [book & {:keys [width height] :or {width 72.0 height 108.0}}]
   (m/Stack
@@ -154,7 +154,7 @@
         .child (m/Icon m.Icons/star_rounded .color t/accent .size 14.0)))
       (m/SizedBox.shrink))]))
 
-;; 图书卡片
+;; Book card
 (defn library-card
   [ctx book & {:keys [height margin] :or {height 240.0}}]
   (let [author (or (.-author book) "")
@@ -174,7 +174,7 @@
          [(m/Column
            .crossAxisAlignment m.CrossAxisAlignment/start
            .children
-           [(ui/text (or (.-title book) "未命名")
+           [(ui/text (or (.-title book) "ᠨᠡᠷᠡᠢᠳᠦᠭᠡᠢ")
                      {:size 17.0 :weight m.FontWeight/w600 :max-lines 2})
             (when (seq author)
               (m/Padding
@@ -214,7 +214,7 @@
                (core/open-library-book! (.-id book))
                nil))))
 
-;; 过滤器侧边栏
+;; Filter rail
 (defn filter-rail [selected]
   (m/Column
    .mainAxisSize m.MainAxisSize/min
@@ -238,8 +238,8 @@
               (m/Padding
                .padding (m/EdgeInsets.symmetric .horizontal 12.0 .vertical 12.0)
                .child
-               (ui/text label
-                        {:size 14.0
-                         :color (if (= id selected) t/primary (t/ink-muted))
-                         :weight (if (= id selected) m.FontWeight/w600 m.FontWeight/normal)}))))))
+               (t/mongol-label label
+                               :size 14.0
+                               :color (if (= id selected) t/primary (t/ink-muted))
+                               :weight (if (= id selected) m.FontWeight/w600 m.FontWeight/normal)))))))
          filters)))

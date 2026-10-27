@@ -7,8 +7,8 @@
             [epub-app.state.store :as store]))
 
 (def ^:private writing-modes
-  [[:vertical "vertical"]
-   [:horizontal "horizontal"]])
+  [[:vertical "Vertical"]
+   [:horizontal "Horizontal"]])
 
 (def ^:private reading-dirs
   [[:left-to-right "LTR"]
@@ -19,10 +19,10 @@
    ["MongolianBaiZheng" "BaiZheng"]])
 
 (def ^:private themes
-  [[:light "light"]
-   [:sepia "sepia"]
-   [:dark "dark"]
-   [:black "black"]])
+  [[:light "Light"]
+   [:sepia "Sepia"]
+   [:dark "Dark"]
+   [:black "Black"]])
 
 (def ^:private app-appearances
   [[:light "Light"]
