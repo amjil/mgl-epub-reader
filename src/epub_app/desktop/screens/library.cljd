@@ -350,10 +350,10 @@
                   (m/ListView
                    .scrollDirection m.Axis/horizontal
                    .padding (m/EdgeInsets.fromLTRB 24.0 20.0 32.0 20.0)
-                   .children (vec (map #(book-card ctx %) shown)))))))]
+                   .children (vec (map #(book-card ctx %) shown)))))))])
          (if (:error state)
            (ui/error-banner (:error state) store/clear-error!)
            (m/SizedBox.shrink))
          (if (get-in state [:ui :settings-visible])
            (settings-modal (:settings state))
-           (m/SizedBox.shrink))]))))))))
+           (m/SizedBox.shrink))])))))))
