@@ -92,12 +92,9 @@
     .child
     (m/GestureDetector
      .behavior m.HitTestBehavior/opaque
-     .onTap (fn [] (when on-tap (await (on-tap))) nil)
+     .onTap (fn [] (when on-tap (on-tap)) nil)
      .child
-     (m/SizedBox
-      .width double/infinity
-      .child
-      (m/Padding
+     (m/Padding
        .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 10.0)
        .child
        (m/Column
@@ -107,7 +104,16 @@
          (ui/gap-v 4)
          (m/IgnorePointer
           .child
-          (t/mongol-label label :size 11.0 :color label-color :weight m.FontWeight/w500))])))))))
+          (t/mongol-label label :size 11.0 :color label-color :weight m.FontWeight/w500))]))))))
+
+(defn- import-rail-btn []
+  (rail-action-btn {:bg t/primary
+                    :icon m.Icons/upload_file_rounded
+                    :icon-color m.Colors/white
+                    :label "ᠣᠷᠣᠭᠤᠯᠬᠤ"
+                    :label-color m.Colors/white
+                    :shadow? true
+                    :on-tap (fn [] (core/pick-and-import!) nil)}))
 
 (defn- library-rail [state]
   (m/Container
@@ -153,14 +159,9 @@
       .child
       (m/Column
        .mainAxisSize m.MainAxisSize/min
+       .crossAxisAlignment m.CrossAxisAlignment/stretch
        .children
-       [(rail-action-btn {:bg t/primary
-                          :icon m.Icons/add_rounded
-                          :icon-color m.Colors/white
-                          :label "ᠣᠷᠣᠭᠤᠯᠬᠤ"
-                          :label-color m.Colors/white
-                          :shadow? true
-                          :on-tap (fn [] (await (core/pick-and-import!)) nil)})
+       [(import-rail-btn)
         (ui/gap-v 6)
         (rail-action-btn {:bg (t/surface-2)
                           :icon m.Icons/settings_rounded
@@ -213,7 +214,7 @@
                             {:size 13.0 :color (t/ink-muted)})
                    (ui/gap-v 18)
                    (m/ElevatedButton
-                    .onPressed (fn [] (await (core/pick-and-import!)) nil)
+                    .onPressed (fn [] (core/pick-and-import!) nil)
                     .style (m/ElevatedButton.styleFrom
                             .backgroundColor t/primary
                             .foregroundColor m.Colors/white
@@ -286,7 +287,7 @@
    :context ctx
    (shortcuts/with-shortcuts
     {(shortcuts/cmd-key s/LogicalKeyboardKey.keyO)
-     (fn [] (await (core/pick-and-import!)) nil)}
+     (fn [] (core/pick-and-import!) nil)}
     (m/Focus
      .autofocus true
      .child

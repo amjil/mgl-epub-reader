@@ -16,7 +16,7 @@
    :watch [state store/app-state]
    (shortcuts/with-shortcuts
     {(shortcuts/cmd-key s.LogicalKeyboardKey/keyO)
-     (fn [] (await (core/pick-and-import!)) nil)}
+     (fn [] (core/pick-and-import!) nil)}
     (m/MaterialApp
      .title "MGL EPUB"
      .debugShowCheckedModeBanner false

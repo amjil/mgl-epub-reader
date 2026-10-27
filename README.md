@@ -41,6 +41,14 @@ Target a specific device:
 clj -M:cljd flutter -d macos
 ```
 
+**Desktop Import on macOS:** `file_selector` needs the app-sandbox entitlement `com.apple.security.files.user-selected.read-write` in `macos/Runner/DebugProfile.entitlements` and `Release.entitlements`. Template copies live under `macos/Runner/` in this repo; after `clj -M:cljd flutter` generates a fresh `macos/` tree, run:
+
+```sh
+./scripts/ensure-macos-import-entitlements.sh
+```
+
+Then rebuild and fully restart the app (not hot reload).
+
 Dart layer tests:
 
 ```sh
