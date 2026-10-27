@@ -161,64 +161,83 @@
                           :shadow? false
                           :on-tap (fn [] (store/toggle-ui! :settings-visible))})]))])))
 
-;; Empty library state
+;; Empty library state — scrollable so it never overflows on short windows.
+;; LayoutBuilder + SingleChildScrollView + ConstrainedBox(minHeight) keeps the
+;; column centred in tall windows while allowing it to scroll in short ones.
 (defn- empty-library [state]
-  (m/Center
-   .child
-   (m/Column
-    .mainAxisSize m.MainAxisSize/min
-    .children
-    (filterv some?
-             [(m/Container
-      .width 140.0
-      .height 140.0
-      .decoration (m/BoxDecoration
-                   .gradient (m/LinearGradient
-                              .colors [t/primary-soft (t/fade t/primary-soft 0.4)]
-                              .begin m.Alignment/topLeft
-                              .end m.Alignment/bottomRight)
-                   .borderRadius (m/BorderRadius.circular t/radius-xl)
-                   .boxShadow t/shadow-lg)
-      .child (m/Center
-              .child (m/Icon m.Icons/auto_stories_rounded
-                             .size 70.0
-                             .color t/primary)))
-     (ui/gap-v 28)
-     (t/mongol-label "ᠮᠣᠩᠭᠤᠯ ᠨᠣᠮ ᠤᠩᠰᠢᠭᠴᠢ" 
-                     :size 24.0 :weight m.FontWeight/bold)
-     (ui/gap-v 10)
-     (ui/text "Click 'Import' or press Cmd+O to add EPUB books"
-              {:size 16.0 :color (t/ink-muted)})
-     (ui/gap-v 20)
-     (m/ElevatedButton
-      .onPressed (fn [] (core/pick-and-import!))
-      .style (m/ElevatedButton.styleFrom
-              .backgroundColor t/primary
-              .foregroundColor m.Colors/white
-              .padding (m/EdgeInsets.symmetric .horizontal 28.0 .vertical 16.0)
-              .shape (m/RoundedRectangleBorder
-                      .borderRadius (m/BorderRadius.circular t/radius-m))
-              .elevation 2.0)
+  (m/LayoutBuilder
+   .builder
+   (fn [_ constraints]
+     (m/SingleChildScrollView
+      .padding (m/EdgeInsets.symmetric .vertical 40.0)
       .child
-      (m/Row
-       .mainAxisSize m.MainAxisSize/min
-       .children
-       [(m/Icon m.Icons/upload_file_rounded .color m.Colors/white .size 22.0)
-        (ui/gap-h 8)
-        (ui/text "Import Books" {:color m.Colors/white :size 16.0 :weight m.FontWeight/w500})]))
-     (when (:error state)
-       (m/Padding
-        .padding (m/EdgeInsets.only .top 24.0)
+      (m/ConstrainedBox
+       .constraints (m/BoxConstraints
+                     .minHeight (max 0.0 (- (.-maxHeight constraints) 80.0)))
+       .child
+       (m/Center
         .child
-        (m/Container
-         .padding (m/EdgeInsets.symmetric .horizontal 20.0 .vertical 14.0)
-         .constraints (m/BoxConstraints .maxWidth 480.0)
-         .decoration (m/BoxDecoration
-                      .color (t/fade t/danger 0.1)
-                      .borderRadius (m/BorderRadius.circular t/radius-m)
-                      .border (m/Border.all .color t/danger .width 1.0))
-         .child (ui/text (:error state)
-                         {:color t/danger :size 14.0}))))]))))
+        (m/Column
+         .mainAxisSize m.MainAxisSize/min
+         .children
+         (filterv some?
+                  [(m/Container
+                    .width 120.0
+                    .height 120.0
+                    .decoration (m/BoxDecoration
+                                 .gradient (m/LinearGradient
+                                            .colors [t/primary-soft
+                                                     (t/fade t/primary-soft 0.4)]
+                                            .begin m.Alignment/topLeft
+                                            .end m.Alignment/bottomRight)
+                                 .borderRadius (m/BorderRadius.circular t/radius-xl)
+                                 .boxShadow t/shadow-lg)
+                    .child (m/Center
+                            .child (m/Icon m.Icons/auto_stories_rounded
+                                          .size 60.0
+                                          .color t/primary)))
+                   (ui/gap-v 24)
+                   (t/mongol-label "ᠮᠣᠩᠭᠤᠯ ᠨᠣᠮ ᠤᠩᠰᠢᠭᠴᠢ"
+                                   :size 22.0 :weight m.FontWeight/bold)
+                   (ui/gap-v 8)
+                   (ui/text "Click ‘Import’ or press Cmd+O to add EPUB books"
+                            {:size 15.0 :color (t/ink-muted)})
+                   (ui/gap-v 18)
+                   (m/ElevatedButton
+                    .onPressed (fn [] (core/pick-and-import!))
+                    .style (m/ElevatedButton.styleFrom
+                            .backgroundColor t/primary
+                            .foregroundColor m.Colors/white
+                            .padding (m/EdgeInsets.symmetric
+                                      .horizontal 24.0 .vertical 14.0)
+                            .shape (m/RoundedRectangleBorder
+                                    .borderRadius (m/BorderRadius.circular t/radius-m))
+                            .elevation 2.0)
+                    .child
+                    (m/Row
+                     .mainAxisSize m.MainAxisSize/min
+                     .children
+                     [(m/Icon m.Icons/upload_file_rounded
+                              .color m.Colors/white .size 20.0)
+                      (ui/gap-h 8)
+                      (ui/text "Import Books"
+                               {:color m.Colors/white
+                                :size 15.0
+                                :weight m.FontWeight/w500})]))
+                   (when (:error state)
+                     (m/Padding
+                      .padding (m/EdgeInsets.only .top 20.0)
+                      .child
+                      (m/Container
+                       .padding (m/EdgeInsets.symmetric
+                                 .horizontal 20.0 .vertical 12.0)
+                       .constraints (m/BoxConstraints .maxWidth 440.0)
+                       .decoration (m/BoxDecoration
+                                    .color (t/fade t/danger 0.1)
+                                    .borderRadius (m/BorderRadius.circular t/radius-m)
+                                    .border (m/Border.all .color t/danger .width 1.0))
+                       .child (ui/text (:error state)
+                                       {:color t/danger :size 13.0}))))]))))))))
 
 ;; Global settings panel
 (defn- settings-panel [settings]
