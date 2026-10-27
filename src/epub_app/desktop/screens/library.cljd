@@ -77,28 +77,43 @@
 ;; Library sidebar
 
 (defn- rail-action-btn [{:keys [bg icon icon-color label label-color shadow? on-tap]}]
-  (m/Container
-   .decoration (m/BoxDecoration
-                .color bg
-                .borderRadius (m/BorderRadius.circular t/radius-m)
-                .boxShadow (when shadow? t/shadow-sm))
+  ;; Opaque hit-test: MongolText paints vertically and can miss InkWell's
+  ;; deferToChild hits. Material owns the fill so the splash is visible.
+  (m/MouseRegion
+   .cursor m.SystemMouseCursors/click
    .child
    (m/Material
-    .color m.Colors/transparent
+    .color bg
+    .elevation (if shadow? 2.0 0.0)
+    .shadowColor (t/fade (t/ink) 0.12)
+    .shape (m/RoundedRectangleBorder
+            .borderRadius (m/BorderRadius.circular t/radius-m))
+    .clipBehavior m.Clip/antiAlias
     .child
-    (m/InkWell
-     .onTap (when on-tap (fn [] (on-tap) nil))
-     .borderRadius (m/BorderRadius.circular t/radius-m)
+    (m/GestureDetector
+     .behavior m.HitTestBehavior/opaque
+     .onTap (fn [] (when on-tap (on-tap)) nil)
      .child
      (m/Padding
-      .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 10.0)
-      .child
-      (m/Column
-       .mainAxisSize m.MainAxisSize/min
-       .children
-       [(m/Icon icon .color icon-color .size 22.0)
-        (ui/gap-v 4)
-        (t/mongol-label label :size 11.0 :color label-color :weight m.FontWeight/w500)]))))))
+       .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 10.0)
+       .child
+       (m/Column
+        .mainAxisSize m.MainAxisSize/min
+        .children
+        [(m/Icon icon .color icon-color .size 22.0)
+         (ui/gap-v 4)
+         (m/IgnorePointer
+          .child
+          (t/mongol-label label :size 11.0 :color label-color :weight m.FontWeight/w500))]))))))
+
+(defn- import-rail-btn []
+  (rail-action-btn {:bg t/primary
+                    :icon m.Icons/upload_file_rounded
+                    :icon-color m.Colors/white
+                    :label "ᠣᠷᠣᠭᠤᠯᠬᠤ"
+                    :label-color m.Colors/white
+                    :shadow? true
+                    :on-tap (fn [] (core/pick-and-import!) nil)}))
 
 (defn- library-rail [state]
   (m/Container
@@ -144,14 +159,9 @@
       .child
       (m/Column
        .mainAxisSize m.MainAxisSize/min
+       .crossAxisAlignment m.CrossAxisAlignment/stretch
        .children
-       [(rail-action-btn {:bg t/primary
-                          :icon m.Icons/add_rounded
-                          :icon-color m.Colors/white
-                          :label "ᠣᠷᠣᠭᠤᠯᠬᠤ"
-                          :label-color m.Colors/white
-                          :shadow? true
-                          :on-tap (fn [] (core/pick-and-import!))})
+       [(import-rail-btn)
         (ui/gap-v 6)
         (rail-action-btn {:bg (t/surface-2)
                           :icon m.Icons/settings_rounded
@@ -223,21 +233,7 @@
                       (ui/text "Import Books"
                                {:color m.Colors/white
                                 :size 13.0
-                                :weight m.FontWeight/w500})]))
-                   (when (:error state)
-                     (m/Padding
-                      .padding (m/EdgeInsets.only .top 20.0)
-                      .child
-                      (m/Container
-                       .padding (m/EdgeInsets.symmetric
-                                 .horizontal 20.0 .vertical 12.0)
-                       .constraints (m/BoxConstraints .maxWidth 440.0)
-                       .decoration (m/BoxDecoration
-                                    .color (t/fade t/danger 0.1)
-                                    .borderRadius (m/BorderRadius.circular t/radius-m)
-                                    .border (m/Border.all .color t/danger .width 1.0))
-                       .child (ui/text (:error state)
-                                       {:color t/danger :size 13.0}))))]))))))))
+                                :weight m.FontWeight/w500})]))]))))))))
 
 ;; Global settings panel.
 ;; Layout: left vertical rail (close btn + Mongolian title) | expanded content.
@@ -300,39 +296,45 @@
       .body
       (m/SafeArea
        .child
-       (m/Row
-        .crossAxisAlignment m.CrossAxisAlignment/stretch
+       (m/Stack
+        .fit m.StackFit/expand
         .children
         (filterv some?
-                 [(library-rail state)
-                  (m/Expanded
-                   .child
-                   (if (empty? (:library state))
-                     (empty-library state)
-                     (let [shown (books/filtered-books state)]
-                       (if (empty? shown)
-                         (m/Center
-                          .child
-                          (m/Column
-                           .mainAxisSize m.MainAxisSize/min
-                           .children
-                           [(m/Container
-                             .width 68.0
-                             .height 68.0
-                             .decoration (m/BoxDecoration
-                                          .color (t/fade t/primary-soft 0.6)
-                                          .borderRadius (m/BorderRadius.circular t/radius-l))
-                             .child (m/Center
-                                     .child (m/Icon m.Icons/filter_list_off .size 36.0 .color t/primary)))
-                            (ui/gap-v 16)
-                            (t/mongol-label "ᠰᠢᠯᠭᠠᠭᠰᠠᠨ ᠨᠣᠮ ᠦᠭᠡᠢ"
-                                            :size 15.0 :weight m.FontWeight/w600)
-                            (ui/gap-v 6)
-                            (t/mongol-label "ᠰᠢᠯᠭᠠᠬᠤ ᠰᠣᠩᠭᠣᠬᠤ"
-                                            :size 12.0 :color (t/ink-muted))]))
-                         (m/ListView
-                          .scrollDirection m.Axis/horizontal
-                          .padding (m/EdgeInsets.fromLTRB 24.0 20.0 32.0 20.0)
-                          .children (vec (map #(book-card ctx %) shown)))))))
-                  (when (get-in state [:ui :settings-visible])
-                    (settings-panel (:settings state)))]))))))))
+                 [(m/Row
+                   .crossAxisAlignment m.CrossAxisAlignment/stretch
+                   .children
+                   (filterv some?
+                            [(library-rail state)
+                             (m/Expanded
+                              .child
+                              (if (empty? (:library state))
+                                (empty-library state)
+                                (let [shown (books/filtered-books state)]
+                                  (if (empty? shown)
+                                    (m/Center
+                                     .child
+                                     (m/Column
+                                      .mainAxisSize m.MainAxisSize/min
+                                      .children
+                                      [(m/Container
+                                        .width 68.0
+                                        .height 68.0
+                                        .decoration (m/BoxDecoration
+                                                     .color (t/fade t/primary-soft 0.6)
+                                                     .borderRadius (m/BorderRadius.circular t/radius-l))
+                                        .child (m/Center
+                                                .child (m/Icon m.Icons/filter_list_off .size 36.0 .color t/primary)))
+                                       (ui/gap-v 16)
+                                       (t/mongol-label "ᠰᠢᠯᠭᠠᠭᠰᠠᠨ ᠨᠣᠮ ᠦᠭᠡᠢ"
+                                                       :size 15.0 :weight m.FontWeight/w600)
+                                       (ui/gap-v 6)
+                                       (t/mongol-label "ᠰᠢᠯᠭᠠᠬᠤ ᠰᠣᠩᠭᠣᠬᠤ"
+                                                       :size 12.0 :color (t/ink-muted))]))
+                                    (m/ListView
+                                     .scrollDirection m.Axis/horizontal
+                                     .padding (m/EdgeInsets.fromLTRB 24.0 20.0 32.0 20.0)
+                                     .children (vec (map #(book-card ctx %) shown)))))))
+                             (when (get-in state [:ui :settings-visible])
+                               (settings-panel (:settings state)))]))
+                  (when (:error state)
+                    (ui/error-banner (:error state) store/clear-error!))]))))))))
