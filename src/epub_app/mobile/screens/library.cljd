@@ -1,4 +1,5 @@
 (ns epub-app.mobile.screens.library
+  "移动端图书馆界面 - 现代化设计"
   (:require ["package:flutter/material.dart" :as m]
             [cljd.flutter :as f]
             [epub-app.state.store :as store]
@@ -6,67 +7,127 @@
             [epub-app.widgets.books :as books]
             [epub-app.widgets.ui :as ui]))
 
+;; 过滤器侧边栏
 (defn- filter-strip [state]
   (m/Container
-   .width 64.0
+   .width 72.0
    .decoration (m/BoxDecoration
-                .color t/surface
-                .border (m/Border .right (m/BorderSide .color t/outline .width 1.0)))
+                .color (t/surface)
+                .border (m/Border .right (m/BorderSide .color (t/outline) .width 1.0))
+                .boxShadow [(m/BoxShadow
+                             .color (t/fade (t/ink) 0.03)
+                             .blurRadius 8.0
+                             .offset (m/Offset. 2.0 0.0))])
    .child
-   (m/SingleChildScrollView
-    .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
-    .child (books/filter-rail (:library-filter state)))))
+   (m/Column
+    .children
+    [(m/Padding
+      .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 20.0)
+      .child
+      (m/Container
+       .width 48.0
+       .height 48.0
+       .decoration (m/BoxDecoration
+                    .gradient (m/LinearGradient
+                               .colors [t/primary t/primary-deep]
+                               .begin m.Alignment/topCenter
+                               .end m.Alignment/bottomCenter)
+                    .borderRadius (m/BorderRadius.circular t/radius-m)
+                    .boxShadow t/shadow-sm)
+       .child (m/Center
+               .child (m/Icon m.Icons/menu_book_rounded
+                              .color m.Colors/white
+                              .size 26.0))))
+     (ui/gap-v 12)
+     (m/Expanded
+      .child
+      (m/SingleChildScrollView
+       .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 8.0)
+       .child (books/filter-rail (:library-filter state))))])))
 
+;; 空图书馆状态
 (defn- empty-library [state]
   (m/Center
    .child
-   (m/Row
+   (m/Column
     .mainAxisSize m.MainAxisSize/min
     .children
-    [(m/Icon m.Icons/menu_book_outlined .size 48.0 .color t/ink-muted)
-     (ui/gap-h 16)
-     (ui/text "EPUB" {:size 18.0 :color t/ink-muted})
-     (if (:error state)
+    [(m/Container
+      .width 120.0
+      .height 120.0
+      .decoration (m/BoxDecoration
+                   .gradient (m/LinearGradient
+                              .colors [t/primary-soft (t/fade t/primary-soft 0.3)]
+                              .begin m.Alignment/topLeft
+                              .end m.Alignment/bottomRight)
+                   .borderRadius (m/BorderRadius.circular t/radius-xl)
+                   .boxShadow t/shadow-md)
+      .child (m/Center
+              .child (m/Icon m.Icons/auto_stories_rounded
+                             .size 60.0
+                             .color t/primary)))
+     (ui/gap-v 24)
+     (ui/text "欢迎使用蒙古文阅读器"
+              {:size 20.0 :weight m.FontWeight/bold})
+     (ui/gap-v 8)
+     (ui/text "导入EPUB图书开始阅读"
+              {:size 15.0 :color (t/ink-muted)})
+     (when (:error state)
        (m/Padding
-        .padding (m.EdgeInsets/only .left 16.0)
-        .child (ui/text (:error state) {:color t/danger}))
-       (m/SizedBox.shrink))])))
+        .padding (m/EdgeInsets.only .top 16.0)
+        .child
+        (m/Container
+         .padding (m/EdgeInsets.symmetric .horizontal 16.0 .vertical 12.0)
+         .decoration (m/BoxDecoration
+                      .color (t/fade t/danger 0.1)
+                      .borderRadius (m/BorderRadius.circular t/radius-m)
+                      .border (m/Border.all .color t/danger .width 1.0))
+         .child (ui/text (:error state)
+                         {:color t/danger :size 13.0}))))])))
 
+;; 图书面板
 (defn- books-pane [state ctx]
   (cond
     (empty? (:library state))
     (empty-library state)
 
     (empty? (books/filtered-books state))
-    (ui/empty-state m.Icons/filter_none "No books in this filter")
+    (ui/empty-state m.Icons/filter_list_off "未找到符合筛选条件的图书"
+                    :subtitle "尝试更换筛选选项")
 
     :else
     (m/SingleChildScrollView
      .scrollDirection m.Axis/horizontal
-     .padding (m.EdgeInsets/fromLTRB 16.0 16.0 24.0 16.0)
+     .padding (m/EdgeInsets.fromLTRB 20.0 20.0 28.0 20.0)
      .child
      (m/Wrap
       .direction m.Axis/vertical
-      .spacing 16.0
-      .runSpacing 20.0
+      .spacing 18.0
+      .runSpacing 22.0
       .children (vec (map #(books/library-card ctx %
-                                               :margin (m.EdgeInsets/zero))
+                                               :margin (m/EdgeInsets.zero)
+                                               :height 240.0)
                           (books/filtered-books state)))))))
 
 (defn screen []
   (f/widget
    :watch [state store/app-state]
    :context ctx
-   (m/Row
-    .crossAxisAlignment m.CrossAxisAlignment/stretch
-    .children
-    [(filter-strip state)
-     (m/Expanded
-      .child
-      (m/Stack
-       .fit m.StackFit/expand
-       .children
-       [(books-pane state ctx)
-        (if (:error state)
-          (ui/error-banner (:error state) store/clear-error!)
-          (m/SizedBox.shrink))]))])))
+   (m/Scaffold
+    .backgroundColor (t/bg)
+    .body
+    (m/SafeArea
+     .child
+     (m/Row
+      .crossAxisAlignment m.CrossAxisAlignment/stretch
+      .children
+      [(filter-strip state)
+       (m/Expanded
+        .child
+        (m/Stack
+         .fit m/StackFit.expand
+         .children
+         [(books-pane state ctx)
+          (if (:error state)
+            (ui/error-banner (:error state) store/clear-error!)
+            (m/SizedBox.shrink))]))])))))

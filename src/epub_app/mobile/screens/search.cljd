@@ -19,8 +19,8 @@
   (m/AppBar
    .elevation 0.0
    .scrolledUnderElevation 0.0
-   .backgroundColor t/bg
-   .foregroundColor t/ink
+   .backgroundColor (t/bg)
+   .foregroundColor (t/ink)
    .surfaceTintColor m.Colors/transparent
    .automaticallyImplyLeading false
    .title nil
@@ -35,9 +35,9 @@
    .margin (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 16.0)
    .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
    .decoration (m/BoxDecoration
-                .color t/surface
+                .color (t/surface)
                 .borderRadius (m.BorderRadius/circular t/radius-m)
-                .border (m/Border.all .color t/outline .width 1.0)
+                .border (m/Border.all .color (t/outline) .width 1.0)
                 .boxShadow (t/card-shadow))
    .child
    (mgl/MongolTextField
@@ -48,7 +48,7 @@
     .decoration (m/InputDecoration
                  .hintText "Search"
                  .border m.InputBorder/none
-                 .hintStyle (t/mongol-style :size 16.0 :color t/ink-faint))
+                 .hintStyle (t/mongol-style :size 16.0 :color (t/ink-faint)))
     .onChanged (fn [txt] (store/set-library-search! (or txt "")) nil)
     .onSubmitted (fn [_]
                    (kb/dismiss!)
@@ -64,26 +64,25 @@
                 (store/set-library-search! (or v "")))
    (let [q (or (:library-search-query state) "")
          hits (matches state q)]
-     (kb/wrap
-      (m/Row
-       .crossAxisAlignment m.CrossAxisAlignment/stretch
-       .children
-       [(search-field search-ctrl search-focus-node)
-        (m/Expanded
-         .child
-         (cond
-           (empty? q)
-           (m/GestureDetector
-            .behavior m.HitTestBehavior/opaque
-            .onTap dismiss-keyboard!
-            .child (ui/empty-state m.Icons/search "Search the library"))
-           (empty? hits)
-           (m/GestureDetector
-            .behavior m.HitTestBehavior/opaque
-            .onTap dismiss-keyboard!
-            .child (ui/empty-state m.Icons/search_off "No matching books"))
-           :else
-           (m/ListView
-            .scrollDirection m.Axis/horizontal
-            .padding (m.EdgeInsets/fromLTRB 12.0 8.0 20.0 8.0)
-            .children (vec (map #(books/library-card ctx %) hits)))))])))))
+     (m/Row
+      .crossAxisAlignment m.CrossAxisAlignment/stretch
+      .children
+      [(search-field search-ctrl search-focus-node)
+       (m/Expanded
+        .child
+        (cond
+          (empty? q)
+          (m/GestureDetector
+           .behavior m.HitTestBehavior/opaque
+           .onTap dismiss-keyboard!
+           .child (ui/empty-state m.Icons/search "Search the library"))
+          (empty? hits)
+          (m/GestureDetector
+           .behavior m.HitTestBehavior/opaque
+           .onTap dismiss-keyboard!
+           .child (ui/empty-state m.Icons/search_off "No matching books"))
+          :else
+          (m/ListView
+           .scrollDirection m.Axis/horizontal
+           .padding (m.EdgeInsets/fromLTRB 12.0 8.0 20.0 8.0)
+           .children (vec (map #(books/library-card ctx %) hits)))))]))))

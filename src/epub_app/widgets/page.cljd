@@ -75,23 +75,38 @@
 
 (defn- paged-reader [state size pages page rtl? swipeable?]
   (f/widget
-   :managed [ctrl (m/PageController. .initialPage (int page))]
+   :managed [ctrl (m/PageController. .initialPage (int page))
+             !edge-lock (atom 0) :dispose nil]
    (do
      (.addPostFrameCallback
       m.WidgetsBinding/instance
       (fn [_] (sync-page! ctrl (int page))))
-     (m/PageView.builder
-      .controller ctrl
-      .reverse rtl?
-      .allowImplicitScrolling true
-      .physics (if swipeable?
-                 (m/PageScrollPhysics.)
-                 (m/NeverScrollableScrollPhysics.))
-      .itemCount (count pages)
-      .onPageChanged on-page-changed
-      .itemBuilder
-      (fn [_ i]
-        (page-view (nth pages i) size state))))))
+     (m/NotificationListener
+      .onNotification
+      (fn [^m/ScrollNotification n]
+        (when (and swipeable? (instance? m/OverscrollNotification n))
+          (let [over (.-overscroll ^m/OverscrollNotification n)
+                now (.-millisecondsSinceEpoch (dart:core/DateTime.now))]
+            (when (and (> (- now @!edge-lock) 600)
+                       (> (abs over) 12.0))
+              (reset! !edge-lock now)
+              (if (pos? over)
+                (core/next-page!)
+                (core/previous-page!)))))
+        false)
+      .child
+      (m/PageView.builder
+       .controller ctrl
+       .reverse rtl?
+       .allowImplicitScrolling true
+       .physics (if swipeable?
+                  (m/ClampingScrollPhysics.)
+                  (m/NeverScrollableScrollPhysics.))
+       .itemCount (count pages)
+       .onPageChanged on-page-changed
+       .itemBuilder
+       (fn [_ i]
+         (page-view (nth pages i) size state)))))))
 
 (defn view
   [state size & {:keys [swipeable?] :or {swipeable? true}}]
@@ -100,7 +115,9 @@
         page (if (pos? n) (min (max (:page state) 0) (dec n)) 0)
         ch-id (or (some-> (:chapter state) .-id) "")
         rtl? (= :right-to-left (:reading-direction (:settings state)))]
-    (if (empty? pages)
+    (if (or (empty? pages)
+            (not= (:viewport-key state) (core/viewport-key size))
+            (= (:status state) :paginating))
       (m/Center .child (m/CircularProgressIndicator.))
       (m/KeyedSubtree
        .key (m/ValueKey. (str ch-id "-" n "-" (core/viewport-key size) "-" rtl?))

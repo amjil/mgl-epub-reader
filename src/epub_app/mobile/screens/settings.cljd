@@ -1,26 +1,28 @@
 (ns epub-app.mobile.screens.settings
+  "移动端设置界面 - 使用 mgl-components 共享组件"
   (:require ["package:flutter/material.dart" :as m]
             [cljd.flutter :as f]
             [components.setting :as setting]
-            [epub-app.state.store :as store]))
+            [epub-app.state.store :as store]
+            [epub-app.theme :as t]))
 
 (def ^:private writing-modes
-  [[:vertical "vertical"]
-   [:horizontal "horizontal"]])
+  [[:vertical "竖排"]
+   [:horizontal "横排"]])
 
 (def ^:private reading-dirs
-  [[:left-to-right "LTR"]
-   [:right-to-left "RTL"]])
+  [[:left-to-right "从左到右"]
+   [:right-to-left "从右到左"]])
 
 (def ^:private fonts
-  [["OyunQaganTig" "Oyun"]
-   ["MongolianBaiZheng" "BaiZheng"]])
+  [["OyunQaganTig" "欧云"]
+   ["MongolianBaiZheng" "白正"]])
 
 (def ^:private themes
-  [[:light "light"]
-   [:sepia "sepia"]
-   [:dark "dark"]
-   [:black "black"]])
+  [[:light "浅色"]
+   [:sepia "棕褐"]
+   [:dark "暗色"]
+   [:black "纯黑"]])
 
 (defn- option-label [value options]
   (or (some (fn [[id label]] (when (= id value) label)) options)
@@ -35,85 +37,117 @@
 (defn- clamp [v lo hi]
   (double (max lo (min hi v))))
 
+;; 步进按钮 - 简单样式,与共享组件配合
 (defn- step-btn [icon on-tap]
   (m/GestureDetector
    .onTap on-tap
    .behavior m.HitTestBehavior/opaque
    .child
    (m/SizedBox
-    .width 24.0
-    .height 24.0
-    .child (m/Center .child (m/Icon icon .size 18.0)))))
+    .width 28.0
+    .height 28.0
+    .child (m/Center .child (m/Icon icon .size 20.0 .color t/primary)))))
 
 (defn- stepper [on-dec on-inc]
-  (m/FittedBox
-   .fit m.BoxFit/scaleDown
-   .child
-   (m/Column
-    .mainAxisSize m.MainAxisSize/min
-    .children
-    [(step-btn m.Icons/remove on-dec)
-     (step-btn m.Icons/add on-inc)])))
+  (m/Column
+   .mainAxisSize m.MainAxisSize/min
+   .children
+   [(step-btn m.Icons/add_rounded on-inc)
+    (m/SizedBox .height 6.0)
+    (step-btn m.Icons/remove_rounded on-dec)]))
 
 (defn screen []
   (f/widget
    :watch [state store/app-state]
    (let [{:keys [font-size line-height writing-mode reading-direction font-family theme]}
          (:settings state)]
-     (m/ListView
-      .scrollDirection m.Axis/horizontal
-      .children
-      [(setting/settings-section
-        "Type"
-        [{:title "Font size"
-          :subtitle (.toStringAsFixed (double font-size) 0)
-          :leading m.Icons/format_size
-          :trailing (stepper
-                     (fn []
-                       (store/update-settings! :font-size (clamp (- font-size 1.0) 14.0 36.0))
-                       nil)
-                     (fn []
-                       (store/update-settings! :font-size (clamp (+ font-size 1.0) 14.0 36.0))
-                       nil))}
-         {:title "Line height"
-          :subtitle (.toStringAsFixed (double line-height) 1)
-          :leading m.Icons/format_line_spacing
-          :trailing (stepper
-                     (fn []
-                       (store/update-settings! :line-height (clamp (- line-height 0.1) 1.2 2.4))
-                       nil)
-                     (fn []
-                       (store/update-settings! :line-height (clamp (+ line-height 0.1) 1.2 2.4))
-                       nil))}
-         {:title "Font"
-          :subtitle (option-label font-family fonts)
-          :leading m.Icons/font_download_outlined
-          :show-arrow? true
-          :on-tap (fn []
-                    (store/update-settings! :font-family (cycle-value font-family fonts))
-                    nil)}])
-       (setting/settings-section
-        "Reading"
-        [{:title "Writing mode"
-          :subtitle (option-label writing-mode writing-modes)
-          :leading m.Icons/view_agenda_outlined
-          :show-arrow? true
-          :on-tap (fn []
-                    (store/update-settings! :writing-mode (cycle-value writing-mode writing-modes))
-                    nil)}
-         {:title "Direction"
-          :subtitle (option-label reading-direction reading-dirs)
-          :leading m.Icons/swap_horiz
-          :show-arrow? true
-          :on-tap (fn []
-                    (store/update-settings! :reading-direction (cycle-value reading-direction reading-dirs))
-                    nil)}])
-       (setting/settings-section
-        "Theme"
-        [{:title "Theme"
-          :subtitle (option-label theme themes)
-          :leading m.Icons/palette_outlined
-          :show-arrow? true
-          :on-tap (fn []
-                    (store/update-settings! :theme (cycle-value theme themes))
-                    nil)}])]))))
+     (m/Scaffold
+      .backgroundColor (t/bg)
+      .body
+      (m/SafeArea
+       .child
+       (m/ListView
+        .scrollDirection m.Axis/horizontal
+        .children
+        [(setting/settings-section
+          "文字"
+          [{:title "字号大小"
+            :subtitle (str (.toStringAsFixed (double font-size) 0) "pt")
+            :leading m.Icons/format_size_rounded
+            :trailing (stepper
+                       (fn []
+                         (store/update-settings! :font-size (clamp (- font-size 1.0) 14.0 40.0))
+                         nil)
+                       (fn []
+                         (store/update-settings! :font-size (clamp (+ font-size 1.0) 14.0 40.0))
+                         nil))}
+           {:title "行距"
+            :subtitle (.toStringAsFixed (double line-height) 1)
+            :leading m.Icons/format_line_spacing_rounded
+            :trailing (stepper
+                       (fn []
+                         (store/update-settings! :line-height (clamp (- line-height 0.1) 1.2 2.8))
+                         nil)
+                       (fn []
+                         (store/update-settings! :line-height (clamp (+ line-height 0.1) 1.2 2.8))
+                         nil))}
+           {:title "字体"
+            :subtitle (option-label font-family fonts)
+            :leading m.Icons/font_download_rounded
+            :show-arrow? true
+            :on-tap (fn []
+                      (store/update-settings! :font-family (cycle-value font-family fonts))
+                      nil)}]
+          :custom-config {:card-radius 16.0
+                          :item-radius 12.0
+                          :show-shadow true})
+         
+         (setting/settings-section
+          "阅读"
+          [{:title "书写模式"
+            :subtitle (option-label writing-mode writing-modes)
+            :leading m.Icons/view_agenda_rounded
+            :show-arrow? true
+            :on-tap (fn []
+                      (store/update-settings! :writing-mode (cycle-value writing-mode writing-modes))
+                      nil)}
+           {:title "阅读方向"
+            :subtitle (option-label reading-direction reading-dirs)
+            :leading m.Icons/swap_horiz_rounded
+            :show-arrow? true
+            :on-tap (fn []
+                      (store/update-settings! :reading-direction (cycle-value reading-direction reading-dirs))
+                      nil)}
+           {:title "翻页样式"
+            :subtitle "滑动"
+            :leading m.Icons/touch_app_rounded
+            :show-arrow? true
+            :on-tap (fn [] nil)}]
+          :custom-config {:card-radius 16.0
+                          :item-radius 12.0
+                          :show-shadow true})
+         
+         (setting/settings-section
+          "外观"
+          [{:title "主题"
+            :subtitle (option-label theme themes)
+            :leading m.Icons/palette_rounded
+            :show-arrow? true
+            :on-tap (fn []
+                      (store/update-settings! :theme (cycle-value theme themes))
+                      (t/set-current-theme! (cycle-value theme themes))
+                      nil)}]
+          :custom-config {:card-radius 16.0
+                          :item-radius 12.0
+                          :show-shadow true})
+         
+         (setting/settings-section
+          "关于"
+          [{:title "版本信息"
+            :subtitle "MGL EPUB Reader 1.0.0"
+            :leading m.Icons/info_rounded
+            :show-arrow? true
+            :on-tap (fn [] nil)}]
+          :custom-config {:card-radius 16.0
+                          :item-radius 12.0
+                          :show-shadow true})]))))))

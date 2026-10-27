@@ -1,12 +1,15 @@
 (ns epub-app.state.store
-  (:require ["package:shared_preferences/shared_preferences.dart" :as sp]))
+  (:require ["package:shared_preferences/shared_preferences.dart" :as sp]
+            [epub-app.theme :as theme]))
 
 (def ^:private pref-font "reader_font_size")
 (def ^:private pref-height "reader_line_height")
 (def ^:private pref-theme "reader_theme")
+(def ^:private pref-app-appearance "app_appearance")
 (def ^:private pref-mode "reader_writing_mode")
 (def ^:private pref-dir "reader_reading_direction")
 (def ^:private pref-family "reader_font_family")
+(def ^:private pref-ime "reader_ime_mode")
 
 (defonce app-state
   (atom
@@ -36,9 +39,11 @@
     :settings {:font-size 22.0
                :line-height 1.8
                :theme :light
+               :app-appearance :light
                :writing-mode :vertical
                :reading-direction :left-to-right
-               :font-family "OyunQaganTig"}
+               :font-family "OyunQaganTig"
+               :ime-mode :builtin}
     :ui {:menu-visible false
          :toc-visible false
          :settings-visible false
@@ -55,9 +60,11 @@
                (.setDouble prefs pref-font (:font-size settings))
                (.setDouble prefs pref-height (:line-height settings))
                (.setString prefs pref-theme (name (:theme settings)))
+               (.setString prefs pref-app-appearance (name (:app-appearance settings)))
                (.setString prefs pref-mode (name (:writing-mode settings)))
                (.setString prefs pref-dir (name (:reading-direction settings)))
-               (.setString prefs pref-family (:font-family settings))))
+               (.setString prefs pref-family (:font-family settings))
+               (.setString prefs pref-ime (name (:ime-mode settings)))))
       (.catchError (fn [e]
                      (dart:core/print (str "settings write failed: " e))
                      nil)))
@@ -75,12 +82,18 @@
                           (assoc :line-height (.getDouble prefs pref-height))
                           (.containsKey prefs pref-theme)
                           (assoc :theme (keyword (.getString prefs pref-theme)))
+                          (.containsKey prefs pref-app-appearance)
+                          (assoc :app-appearance (keyword (.getString prefs pref-app-appearance)))
                           (.containsKey prefs pref-mode)
                           (assoc :writing-mode (keyword (.getString prefs pref-mode)))
                           (.containsKey prefs pref-dir)
                           (assoc :reading-direction (keyword (.getString prefs pref-dir)))
                           (.containsKey prefs pref-family)
-                          (assoc :font-family (.getString prefs pref-family)))))))
+                          (assoc :font-family (.getString prefs pref-family))
+                          (.containsKey prefs pref-ime)
+                          (assoc :ime-mode (keyword (.getString prefs pref-ime))))))
+               (theme/apply-appearance!
+                (get-in @app-state [:settings :app-appearance] :light))))
       (.catchError (fn [e]
                      (dart:core/print (str "load prefs failed: " e))
                      nil))))
@@ -153,11 +166,14 @@
 (defn begin-paginate! [viewport-key]
   (:paginate-gen
    (swap! app-state (fn [s]
-                      (-> s
-                          (update :paginate-gen (fnil inc 0))
-                          (assoc :status :paginating
-                                 :viewport-key viewport-key
-                                 :error nil))))))
+                      (let [resize? (not= (:viewport-key s) viewport-key)]
+                        (-> s
+                            (update :paginate-gen (fnil inc 0))
+                            (assoc :status :paginating
+                                   :viewport-key viewport-key
+                                   :error nil)
+                            (cond-> resize?
+                              (assoc :pages [] :page 0))))))))
 
 (defn paginate-matches? [gen chapter-id]
   (let [s @app-state]
@@ -186,6 +202,8 @@
   #{:font-size :line-height :writing-mode :reading-direction :font-family})
 
 (defn update-settings! [k v]
+  (when (= k :app-appearance)
+    (theme/apply-appearance! v))
   (swap! app-state (fn [s]
                      (let [next (assoc-in s [:settings k] v)]
                        (if (contains? layout-setting-keys k)
@@ -203,6 +221,20 @@
 
 (def ^:private right-panel-keys
   [:settings-visible :search-visible :bookmarks-visible :notes-visible])
+
+(def ^:private mobile-panel-keys
+  [:toc-visible :settings-visible :search-visible :bookmarks-visible :notes-visible])
+
+(defn toggle-mobile-panel!
+  "Mobile reader: TOC and side panels are mutually exclusive."
+  [k]
+  (swap! app-state update :ui
+         (fn [ui]
+           (let [on? (not (get ui k))]
+             (reduce (fn [u key]
+                       (assoc u key (and on? (= key k))))
+                     ui
+                     mobile-panel-keys)))))
 
 (defn toggle-panel!
   "Desktop: TOC toggles independently; right-side panels are exclusive."

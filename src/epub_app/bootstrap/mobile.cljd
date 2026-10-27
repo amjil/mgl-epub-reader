@@ -1,7 +1,5 @@
 (ns epub-app.bootstrap.mobile
-  (:require [virtual-keyboard.input-control :as input-control]
-            [epub-app.bootstrap.ime :as ime]))
+  (:require [epub-app.bootstrap.ime :as ime]))
 
 (defn init! []
-  (ime/init! "mobile")
-  (input-control/set-control))
+  (ime/init! "mobile"))

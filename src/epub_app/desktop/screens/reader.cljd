@@ -74,7 +74,7 @@
      (m/AnimatedContainer
       .duration t/pane-anim
       .width 40.0
-      .color (if hover? (t/fade t/ink 0.06) (t/fade t/ink 0.0))
+      .color (if hover? (t/fade (t/ink) 0.06) (t/fade (t/ink) 0.0))
       .child
       (m/Center
        .child
@@ -82,7 +82,7 @@
                  m.Icons/chevron_left
                  m.Icons/chevron_right)
                .size 22.0
-               .color (if hover? t/ink-muted (t/fade t/ink 0.0)))))))))
+               .color (if hover? (t/ink-muted) (t/fade (t/ink) 0.0)))))))))
 
 (defn- reading-area [state]
   (f/widget
@@ -164,9 +164,9 @@
                      .child
                      (m/DecoratedBox
                       .decoration (m/BoxDecoration
-                                   .color t/surface
+                                   .color (t/surface)
                                    .border (m/Border
-                                            .right (m/BorderSide .color t/outline .width 1.0)))
+                                            .right (m/BorderSide .color (t/outline) .width 1.0)))
                       .child (toc/pane (or (some-> (:book state) .-toc) [])))))
                   (when toc? (chrome/toc-split-handle max-toc))
                   (m/Expanded
@@ -212,7 +212,7 @@
        .autofocus true
        .child
        (m/Scaffold
-        .backgroundColor t/bg
+        .backgroundColor (t/bg)
         .body
         (m/SafeArea
          .child

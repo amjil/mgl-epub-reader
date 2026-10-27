@@ -12,7 +12,7 @@
 
 (defn pane [items]
   (m/ColoredBox
-   .color t/surface
+   .color (t/surface)
    .child
    (m/Column
     .crossAxisAlignment m.CrossAxisAlignment/stretch

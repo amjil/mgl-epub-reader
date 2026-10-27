@@ -5,6 +5,7 @@
             [epub-app.mobile.screens.reader :as reader]
             [epub-app.mobile.screens.search :as search]
             [epub-app.mobile.screens.settings :as settings]
+            [epub-app.mobile.widgets.keyboard :as kb]
             [epub-app.mobile.widgets.nav :as nav]
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
@@ -23,7 +24,7 @@
 (defn- shell [state kb-open?]
   (let [tab (or (:mobile-tab state) :library)]
     (m/Scaffold
-     .backgroundColor t/bg
+     .backgroundColor (t/bg)
      .resizeToAvoidBottomInset false
      .appBar (when kb-open? (search/app-bar))
      .body
@@ -38,7 +39,7 @@
         (if (opening? state)
           (m/ModalBarrier
            .dismissible false
-           .color (t/fade t/ink 0.18))
+           .color (t/fade (t/ink) 0.18))
           (m/SizedBox.shrink))
         (if (opening? state)
           (m/Center .child (m/CircularProgressIndicator.))
@@ -52,17 +53,27 @@
         .onPressed (fn [] (core/pick-and-import!) nil)
         .child (m/Icon m.Icons/add))))))
 
+(defn- with-ime [state content]
+  (if (= :builtin (get-in state [:settings :ime-mode] :builtin))
+    (kb/wrap content)
+    content))
+
 (defn- root []
   (f/widget
    :watch [state store/app-state
            kb-open? input-control/visible]
-   (if (:book state)
-     (reader/screen)
-     (shell state kb-open?))))
+   (with-ime state
+    (if (:book state)
+      (reader/screen)
+      (shell state kb-open?)))))
 
 (defn app []
-  (m/MaterialApp
-   .title "MGL EPUB"
-   .debugShowCheckedModeBanner false
-   .theme t/app-theme
-   .home (root)))
+  (f/widget
+   :watch [state store/app-state]
+   (m/MaterialApp
+    .title "MGL EPUB"
+    .debugShowCheckedModeBanner false
+    .theme t/app-theme
+    .darkTheme t/app-theme-dark
+    .themeMode (t/theme-mode (get-in state [:settings :app-appearance] :light))
+    .home (root))))

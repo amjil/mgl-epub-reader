@@ -1,5 +1,5 @@
 (ns epub-app.widgets.books
-  "Shared library helpers: covers, menus, filters."
+  "图书组件库 - 使用 mgl-components 共享组件"
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
             ["dart:io" :as io]
@@ -10,10 +10,10 @@
             [epub-app.widgets.ui :as ui]))
 
 (def filters
-  [[:all "All"]
-   [:recent "Recent"]
-   [:favorites "Favorites"]
-   [:finished "Finished"]])
+  [[:all "全部"]
+   [:recent "最近"]
+   [:favorites "收藏"]
+   [:finished "已读完"]])
 
 (defn filtered-books [state]
   (let [books (:library state)]
@@ -30,133 +30,216 @@
     (and (seq q)
          (or (.contains title q) (.contains author q)))))
 
+;; 删除确认对话框
 (defn confirm-delete! [ctx book]
   (m/showDialog
    .context ctx
    .builder
    (fn [c]
      (mgl/MongolAlertDialog
-      .title (ui/text "Delete book?" {:size 16.0 :weight m.FontWeight/bold})
-      .content (ui/text (or (.-title book) "") {:size 16.0})
+      .backgroundColor (t/surface)
+      .shape (m/RoundedRectangleBorder
+              .borderRadius (m/BorderRadius.circular t/radius-l))
+      .title (ui/text "确认删除?" {:size 18.0 :weight m.FontWeight/bold})
+      .content (m/Padding
+                .padding (m/EdgeInsets.symmetric .vertical 8.0)
+                .child (ui/text (or (.-title book) "")
+                                {:size 16.0 :color (t/ink-muted)}))
       .actions
-      [(mgl/MongolTextButton
+      [(m/TextButton
         .onPressed (fn [] (.pop (m/Navigator.of c)))
-        .child (ui/text "Cancel" {:color t/ink-muted}))
-       (mgl/MongolTextButton
+        .child (ui/text "取消" {:color (t/ink-muted) :weight m.FontWeight/w500}))
+       (m/ElevatedButton
         .onPressed (fn []
                      (.pop (m/Navigator.of c))
                      (core/remove-book! (.-id book)))
-        .child (ui/text "Delete" {:color t/danger}))]))))
+        .style (m/ElevatedButton.styleFrom
+                .backgroundColor t/danger
+                .foregroundColor m.Colors/white
+                .padding (m/EdgeInsets.symmetric .horizontal 16.0 .vertical 10.0))
+        .child (ui/text "删除" {:color m.Colors/white :weight m.FontWeight/w500}))]))))
 
+;; 图书菜单 - 使用 components.menu
 (defn book-menu [ctx book]
   (menu/custom-popup-menu
    {:trigger-builder
     (fn [show-menu]
-      (m/IconButton
-       .iconSize 18.0
-       .visualDensity m.VisualDensity/compact
-       .padding (m.EdgeInsets/all 2.0)
-       .constraints (m/BoxConstraints .minWidth 28.0 .minHeight 28.0)
-       .style (m/IconButton.styleFrom
-               .tapTargetSize m.MaterialTapTargetSize/shrinkWrap
-               .minimumSize (m/Size. 28.0 28.0)
-               .padding (m.EdgeInsets/all 2.0)
-               .visualDensity m.VisualDensity/compact)
-       .icon (m/Icon m.Icons/more_vert .color t/ink-muted)
-       .onPressed show-menu))
-    :bg-color t/surface
-    :border-radius 16.0
-    :menu-width 280.0
+      (m/Material
+       .color m.Colors/transparent
+       .child
+       (m/InkWell
+        .onTap show-menu
+        .borderRadius (m/BorderRadius.circular t/radius-s)
+        .child
+        (m/Padding
+         .padding (m/EdgeInsets.all 6.0)
+         .child (m/Icon m.Icons/more_vert_rounded .color (t/ink-muted) .size 20.0)))))
+    :bg-color (t/surface)
+    :border-radius t/radius-l
+    :menu-width 300.0
     :items [{:type :item
-             :title (if (.-favorite book) "Unfavorite" "Favorite")
-             :leading m.Icons/star
-             :leading-color t/gold
+             :title (if (.-favorite book) "取消收藏" "收藏")
+             :leading (if (.-favorite book) m.Icons/star_rounded m.Icons/star_outline_rounded)
+             :leading-color t/accent
              :on-tap #(core/toggle-favorite! (.-id book) (not (.-favorite book)))}
             {:type :item
-             :title (if (.-finished book) "Mark unread" "Mark finished")
-             :leading m.Icons/check_circle_outline
-             :leading-color t/primary
+             :title (if (.-finished book) "标记未读" "标记已读")
+             :leading m.Icons/check_circle_outline_rounded
+             :leading-color t/success
              :on-tap #(core/set-finished! (.-id book) (not (.-finished book)))}
             {:type :divider}
             {:type :item
-             :title "Delete"
-             :leading m.Icons/delete_outline
+             :title "删除"
+             :leading m.Icons/delete_outline_rounded
              :leading-color t/danger
              :on-tap #(confirm-delete! ctx book)}]}))
 
+;; 封面占位符
 (defn cover-placeholder
-  [& {:keys [width height] :or {width 64.0 height 96.0}}]
+  [& {:keys [width height] :or {width 72.0 height 108.0}}]
   (m/Container
-   .width width .height height
+   .width width
+   .height height
    .decoration (m/BoxDecoration
-                .color t/primary-soft
-                .borderRadius (m.BorderRadius/circular 8.0))
-   .child (m/Center .child (m/Icon m.Icons/menu_book .color t/primary))))
+                .gradient (m/LinearGradient
+                           .colors [t/primary-soft (t/fade t/primary-soft 0.5)]
+                           .begin m.Alignment/topLeft
+                           .end m.Alignment/bottomRight)
+                .borderRadius (m/BorderRadius.circular t/radius-m)
+                .boxShadow t/shadow-sm)
+   .child (m/Center
+           .child (m/Icon m.Icons/menu_book_rounded
+                          .color t/primary
+                          .size (* width 0.45)))))
 
+;; 封面缩略图
 (defn cover-thumb
-  [book & {:keys [width height] :or {width 64.0 height 96.0}}]
+  [book & {:keys [width height] :or {width 72.0 height 108.0}}]
   (let [path (.-cover book)]
     (if (and path (.existsSync (io/File. path)))
-      (m/ClipRRect
-       .borderRadius (m.BorderRadius/circular 8.0)
+      (m/Container
+       .decoration (m/BoxDecoration
+                    .borderRadius (m/BorderRadius.circular t/radius-m)
+                    .boxShadow t/shadow-sm)
+       .clipBehavior m.Clip/antiAlias
        .child
-       (m/Image.file
-        (io/File. path)
-        .width width
-        .height height
-        .fit m.BoxFit/cover
-        .errorBuilder (fn [_ _ _] (cover-placeholder :width width :height height))))
+       (m/ClipRRect
+        .borderRadius (m/BorderRadius.circular t/radius-m)
+        .child
+        (m/Image.file
+         (io/File. path)
+         .width width
+         .height height
+         .fit m/BoxFit.cover
+         .errorBuilder (fn [_ _ _] (cover-placeholder :width width :height height)))))
       (cover-placeholder :width width :height height))))
 
+;; 带徽章的封面
 (defn cover-with-badge
-  [book & {:keys [width height] :or {width 64.0 height 96.0}}]
+  [book & {:keys [width height] :or {width 72.0 height 108.0}}]
   (m/Stack
    .children
    [(cover-thumb book :width width :height height)
     (if (.-favorite book)
       (m/Positioned
-       .right 0.0
-       .bottom 0.0
-       .child (m/Icon m.Icons/star .color t/gold .size 16.0))
+       .right 4.0
+       .bottom 4.0
+       .child
+       (m/Container
+        .padding (m/EdgeInsets.all 4.0)
+        .decoration (m/BoxDecoration
+                     .color m.Colors/white
+                     .borderRadius (m/BorderRadius.circular t/radius-xs)
+                     .boxShadow t/shadow-sm)
+        .child (m/Icon m.Icons/star_rounded .color t/accent .size 14.0)))
       (m/SizedBox.shrink))]))
 
+;; 图书卡片
 (defn library-card
-  [ctx book & {:keys [height margin] :or {height 220.0}}]
-  (let [author (or (.-author book) "")]
+  [ctx book & {:keys [height margin] :or {height 240.0}}]
+  (let [author (or (.-author book) "")
+        progress (.-progress book)]
     (ui/card-shell
      (m/Row
       .crossAxisAlignment m.CrossAxisAlignment/stretch
       .children
-      [(cover-with-badge book)
-       (ui/gap-h 8)
+      [(cover-with-badge book :width 72.0 :height 108.0)
+       (ui/gap-h 10)
        (m/Expanded
-        .child (ui/text (or (.-title book) "Untitled")
-                        {:size 18.0 :weight m.FontWeight/bold :max-lines 1}))
-       (if (seq author)
-         (m/Flexible
-          .child
-          (m/Padding
-           .padding (m.EdgeInsets/only .left 6.0)
-           .child (ui/text author {:size 13.0 :color t/ink-muted :max-lines 1})))
-         (m/SizedBox.shrink))
-       (ui/gap-h 6)
-       (ui/v-progress (.-progress book))
+        .child
+        (m/Column
+         .crossAxisAlignment m.CrossAxisAlignment/start
+         .mainAxisAlignment m.MainAxisAlignment/spaceBetween
+         .children
+         [(m/Column
+           .crossAxisAlignment m.CrossAxisAlignment/start
+           .children
+           [(ui/text (or (.-title book) "未命名")
+                     {:size 17.0 :weight m.FontWeight/w600 :max-lines 2})
+            (when (seq author)
+              (m/Padding
+               .padding (m/EdgeInsets.only .top 6.0)
+               .child (ui/text author {:size 13.0 :color (t/ink-muted) :max-lines 1})))])
+          (when (> progress 0.0)
+            (m/Column
+             .crossAxisAlignment m.CrossAxisAlignment/start
+             .children
+             [(ui/text (str (int (* progress 100)) "%")
+                       {:size 11.0 :color t/primary :weight m.FontWeight/w500})
+              (ui/gap-v 3)
+              (m/Container
+               .height 2.5
+               .decoration (m/BoxDecoration
+                            .color (t/surface-2)
+                            .borderRadius (m/BorderRadius.circular 2.0))
+               .child
+               (m/FractionallySizedBox
+                .widthFactor progress
+                .child
+                (m/Container
+                 .decoration (m/BoxDecoration
+                              .gradient (m/LinearGradient
+                                         .colors [t/primary t/primary-deep])
+                              .borderRadius (m/BorderRadius.circular 2.0)))))]))]))
+       (ui/gap-h 8)
+       (ui/v-progress progress)
        (m/Align
         .alignment m.Alignment/topCenter
         .child (book-menu ctx book))])
-     :width 196.0
+     :width 210.0
      :height height
      :margin margin
+     :padding 14.0
      :on-tap (fn []
                (core/open-library-book! (.-id book))
                nil))))
 
+;; 过滤器侧边栏
 (defn filter-rail [selected]
   (m/Column
    .mainAxisSize m.MainAxisSize/min
    .children
    (mapv (fn [[id label]]
-           (ui/pill {:label label
-                     :active? (= id selected)
-                     :on-tap #(store/set-library-filter! id)}))
+           (m/Container
+            .margin (m/EdgeInsets.symmetric .vertical 4.0)
+            .decoration (when (= id selected)
+                          (m/BoxDecoration
+                           .color t/primary-soft
+                           .borderRadius (m/BorderRadius.circular t/radius-m)
+                           .border (m/Border.all .color t/primary .width 2.0)))
+            .child
+            (m/Material
+             .color m.Colors/transparent
+             .child
+             (m/InkWell
+              .onTap #(store/set-library-filter! id)
+              .borderRadius (m/BorderRadius.circular t/radius-m)
+              .child
+              (m/Padding
+               .padding (m/EdgeInsets.symmetric .horizontal 12.0 .vertical 12.0)
+               .child
+               (ui/text label
+                        {:size 14.0
+                         :color (if (= id selected) t/primary (t/ink-muted))
+                         :weight (if (= id selected) m.FontWeight/w600 m.FontWeight/normal)}))))))
          filters)))

@@ -20,8 +20,14 @@
      .title "MGL EPUB"
      .debugShowCheckedModeBanner false
      .theme t/app-theme
+     .darkTheme t/app-theme-dark
+     .themeMode (t/theme-mode (get-in state [:settings :app-appearance] :light))
      .home
-     (kb/wrap
-      (if (:book state)
-        (reader/screen)
-        (library/screen)))))))
+     (if (= :builtin (get-in state [:settings :ime-mode] :builtin))
+       (kb/wrap
+        (if (:book state)
+          (reader/screen)
+          (library/screen)))
+       (if (:book state)
+         (reader/screen)
+         (library/screen)))))))

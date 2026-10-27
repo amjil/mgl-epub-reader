@@ -11,7 +11,7 @@
 (def info
   (merge vk-options/keyboard-option
          {:keyboard/mongol-font-family "OyunQaganTig"
-          :keyboard/key-container-color t/surface-2
+          :keyboard/key-container-color (t/surface-2)
           :keyboard/font-size 16}))
 
 (defn dismiss! []
@@ -33,9 +33,20 @@
 (defn bar []
   (vk/keyboard {:custom-fns {:on-return dismiss!}}))
 
+(defn apply-ime-mode!
+  "Enable or disable system keyboard interception for built-in IME."
+  [builtin?]
+  (if builtin?
+    (install)
+    (do
+      (dismiss!)
+      nil))
+  nil)
+
 (defn wrap
   "Wrap main content with the in-app Mongolian virtual keyboard."
   [main-content]
+  (install)
   (swap! kb-state/state assoc
          :keyboard/return-mode :single-line
          :keyboard/return-callback dismiss!)

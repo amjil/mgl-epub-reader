@@ -23,13 +23,13 @@
       .child
       (m/AnimatedContainer
        .duration (dart:core/Duration. .milliseconds 160)
-       .color (if active? t/primary-soft (t/fade t/surface 0.0))
+       .color (if active? (t/primary-soft) (t/fade (t/surface) 0.0))
        .child
        (m/Center
         .child
         (m/Icon icon
                 .size 24.0
-                .color (if active? t/primary t/ink-muted))))))))
+                .color (if active? t/primary (t/ink-muted)))))))))
 
 (defn bar [selected]
   (m/SafeArea
@@ -40,10 +40,10 @@
     .margin (m.EdgeInsets/fromLTRB 24.0 0.0 24.0 16.0)
     .clipBehavior m.Clip/antiAlias
     .decoration (m/BoxDecoration
-                 .color t/surface
+                 .color (t/surface)
                  .borderRadius (m.BorderRadius/circular 32.0)
                  .boxShadow [(m/BoxShadow
-                              .color (t/fade t/ink 0.08)
+                              .color (t/fade (t/ink) 0.08)
                               .blurRadius 20.0
                               .offset (m/Offset. 0.0 8.0))])
     .child
