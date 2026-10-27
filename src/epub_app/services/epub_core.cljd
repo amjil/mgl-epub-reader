@@ -67,7 +67,7 @@
      .fontSize (:font-size s)
      .lineHeight (:line-height s)
      .fontFamily (:font-family s)
-     .padding (m.EdgeInsets/all 28.0)
+     .padding (m/EdgeInsets.all 28.0)
      .writingMode (if (= (:writing-mode s) :vertical)
                     epub.WritingMode/vertical
                     epub.WritingMode/horizontal)

@@ -1,0 +1,69 @@
+(ns epub-app.mobile.widgets.nav
+  "Floating pill bottom navigation for the mobile shell."
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            [epub-app.state.store :as store]
+            [epub-app.theme :as t]))
+
+;; Each item has an icon and a short Traditional Mongolian label.
+(def items
+  [{:id :library  :icon m.Icons/menu_book  :label "ᠨᠣᠮᠢᠨ ᠰᠠᠩ"}
+   {:id :search   :icon m.Icons/search     :label "ᠬᠠᠶᠢᠯᠲᠠ"}
+   {:id :settings :icon m.Icons/tune       :label "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ"}])
+
+(defn- nav-item [{:keys [id icon label]} selected]
+  (let [active? (= id selected)]
+    (m/Expanded
+     .child
+     (m/InkWell
+      .onTap (fn []
+               (when-not (= id selected)
+                 (when-let [focus (.-primaryFocus m/FocusManager.instance)]
+                   (.unfocus focus))
+                 (store/set-mobile-tab! id))
+               nil)
+      .child
+      (m/AnimatedContainer
+       .duration (dart:core/Duration. .milliseconds 160)
+       .color (if active? t/primary-soft (t/fade (t/surface) 0.0))
+       .child
+       (m/Center
+        .child
+        (m/Column
+         .mainAxisSize m.MainAxisSize/min
+         .children
+         [(m/Icon icon
+                  .size 22.0
+                  .color (if active? t/primary (t/ink-muted)))
+          (m/SizedBox .height 3.0)
+          (mgl/MongolText
+           label
+           .style (m/TextStyle
+                   .fontFamily t/font
+                   .fontSize 10.0
+                   .fontWeight (if active? m.FontWeight/w600 m.FontWeight/normal)
+                   .color (if active? t/primary (t/ink-muted))))])))))))
+
+(defn bar [selected]
+  (m/SafeArea
+   .top false
+   .child
+   (m/Container
+    .height t/bottom-nav-height
+    .margin (m/EdgeInsets.fromLTRB 24.0 0.0 24.0 16.0)
+    .clipBehavior m.Clip/antiAlias
+    .decoration (m/BoxDecoration
+                 .color (t/surface)
+                 .borderRadius (m/BorderRadius.circular 32.0)
+                 .boxShadow [(m/BoxShadow
+                              .color (t/fade (t/ink) 0.08)
+                              .blurRadius 20.0
+                              .offset (m/Offset. 0.0 8.0))])
+    .child
+    (m/Material
+     .color m.Colors/transparent
+     .child
+     (m/Row
+      .crossAxisAlignment m.CrossAxisAlignment/stretch
+      .children
+      (mapv #(nav-item % selected) items))))))

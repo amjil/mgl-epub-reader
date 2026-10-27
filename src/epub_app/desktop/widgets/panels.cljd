@@ -33,7 +33,7 @@
      .width 72.0
      .child
      (m/Padding
-      .padding (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 12.0)
+      .padding (m/EdgeInsets.symmetric .horizontal 10.0 .vertical 12.0)
       .child
       (mgl/MongolTextField
        .autofocus true
@@ -47,7 +47,7 @@
      .child
      (m/ListView
       .scrollDirection m.Axis/horizontal
-      .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+      .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
       .children (vec (map hit-tile results))))]))
 
 (defn- bookmark-tile [bm]
@@ -66,15 +66,15 @@
   (m/Row
    .children
    [(m/Padding
-     .padding (m.EdgeInsets/fromLTRB 12.0 16.0 8.0 16.0)
-     .child (ui/text "Bookmarks" {:size 16.0 :weight m.FontWeight/bold}))
+     .padding (m/EdgeInsets.fromLTRB 12.0 16.0 8.0 16.0)
+     .child (t/mongol-label "ᠳᠡᠮᠳᠡᠭ" :size 16.0 :weight m.FontWeight/bold))
     (m/Expanded
      .child
      (if (empty? bookmarks)
        (ui/empty-state m.Icons/bookmarks_outlined "No bookmarks")
        (m/ListView
         .scrollDirection m.Axis/horizontal
-        .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+        .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
         .children (vec (map bookmark-tile bookmarks)))))]))
 
 (defn- note-tile [ann]
@@ -93,15 +93,15 @@
   (m/Row
    .children
    [(m/Padding
-     .padding (m.EdgeInsets/fromLTRB 12.0 16.0 8.0 16.0)
-     .child (ui/text "Notes" {:size 16.0 :weight m.FontWeight/bold}))
+     .padding (m/EdgeInsets.fromLTRB 12.0 16.0 8.0 16.0)
+     .child (t/mongol-label "ᠲᠡᠮᠳᠡᠭᠯᠡᠯ" :size 16.0 :weight m.FontWeight/bold))
     (m/Expanded
      .child
      (if (empty? annotations)
        (ui/empty-state m.Icons/notes_outlined "No notes")
        (m/ListView
         .scrollDirection m.Axis/horizontal
-        .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+        .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
         .children (vec (map note-tile annotations)))))]))
 
 (defn docked
@@ -136,10 +136,10 @@
    (m/Material
     .elevation 8.0
     .color (t/surface)
-    .borderRadius (m.BorderRadius/circular 12.0)
+    .borderRadius (m/BorderRadius.circular 12.0)
     .child
     (m/Padding
-     .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 8.0)
+     .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 8.0)
      .child
      (m/SingleChildScrollView
       .scrollDirection m.Axis/horizontal
@@ -161,10 +161,10 @@
    (m/Material
     .elevation 10.0
     .color (t/surface)
-    .borderRadius (m.BorderRadius/circular 12.0)
+    .borderRadius (m/BorderRadius.circular 12.0)
     .child
     (m/Padding
-     .padding (m.EdgeInsets/all 16.0)
+     .padding (m/EdgeInsets.all 16.0)
      .child
      (m/Row
       .crossAxisAlignment m.CrossAxisAlignment/stretch

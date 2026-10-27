@@ -1,153 +1,20 @@
 (ns epub-app.mobile.screens.settings
-  "Mobile settings interface - using mgl-components shared components"
+  "Mobile settings tab — delegates to shared reader-settings sections."
   (:require ["package:flutter/material.dart" :as m]
             [cljd.flutter :as f]
-            [components.setting :as setting]
+            [epub-app.reader-settings :as rs]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]))
-
-(def ^:private writing-modes
-  [[:vertical "Vertical"]
-   [:horizontal "Horizontal"]])
-
-(def ^:private reading-dirs
-  [[:left-to-right "Left to Right"]
-   [:right-to-left "Right to Left"]])
-
-(def ^:private fonts
-  [["OyunQaganTig" "Oyun"]
-   ["MongolianBaiZheng" "BaiZheng"]])
-
-(def ^:private themes
-  [[:light "Light"]
-   [:sepia "Sepia"]
-   [:dark "Dark"]
-   [:black "Black"]])
-
-(defn- option-label [value options]
-  (or (some (fn [[id label]] (when (= id value) label)) options)
-      (str value)))
-
-(defn- cycle-value [value options]
-  (let [ids (mapv first options)
-        n (count ids)
-        idx (or (first (keep-indexed (fn [i id] (when (= id value) i)) ids)) -1)]
-    (nth ids (mod (inc idx) n))))
-
-(defn- clamp [v lo hi]
-  (double (max lo (min hi v))))
-
-;; Stepper buttons - simple style, working with shared components
-(defn- step-btn [icon on-tap]
-  (m/GestureDetector
-   .onTap on-tap
-   .behavior m.HitTestBehavior/opaque
-   .child
-   (m/SizedBox
-    .width 28.0
-    .height 28.0
-    .child (m/Center .child (m/Icon icon .size 20.0 .color t/primary)))))
-
-(defn- stepper [on-dec on-inc]
-  (m/Column
-   .mainAxisSize m.MainAxisSize/min
-   .children
-   [(step-btn m.Icons/add_rounded on-inc)
-    (m/SizedBox .height 6.0)
-    (step-btn m.Icons/remove_rounded on-dec)]))
 
 (defn screen []
   (f/widget
    :watch [state store/app-state]
-   (let [{:keys [font-size line-height writing-mode reading-direction font-family theme]}
-         (:settings state)]
-     (m/Scaffold
-      .backgroundColor (t/bg)
-      .body
-      (m/SafeArea
-       .child
-       (m/ListView
-        .scrollDirection m.Axis/horizontal
-        .children
-        [(setting/settings-section
-          "Text"
-          [{:title "Font Size"
-            :subtitle (str (.toStringAsFixed (double font-size) 0) "pt")
-            :leading m.Icons/format_size_rounded
-            :trailing (stepper
-                       (fn []
-                         (store/update-settings! :font-size (clamp (- font-size 1.0) 14.0 40.0))
-                         nil)
-                       (fn []
-                         (store/update-settings! :font-size (clamp (+ font-size 1.0) 14.0 40.0))
-                         nil))}
-           {:title "Line Height"
-            :subtitle (.toStringAsFixed (double line-height) 1)
-            :leading m.Icons/format_line_spacing_rounded
-            :trailing (stepper
-                       (fn []
-                         (store/update-settings! :line-height (clamp (- line-height 0.1) 1.2 2.8))
-                         nil)
-                       (fn []
-                         (store/update-settings! :line-height (clamp (+ line-height 0.1) 1.2 2.8))
-                         nil))}
-           {:title "Font"
-            :subtitle (option-label font-family fonts)
-            :leading m.Icons/font_download_rounded
-            :show-arrow? true
-            :on-tap (fn []
-                      (store/update-settings! :font-family (cycle-value font-family fonts))
-                      nil)}]
-          :custom-config {:card-radius 16.0
-                          :item-radius 12.0
-                          :show-shadow true})
-         
-         (setting/settings-section
-          "Reading"
-          [{:title "Writing Mode"
-            :subtitle (option-label writing-mode writing-modes)
-            :leading m.Icons/view_agenda_rounded
-            :show-arrow? true
-            :on-tap (fn []
-                      (store/update-settings! :writing-mode (cycle-value writing-mode writing-modes))
-                      nil)}
-           {:title "Reading Direction"
-            :subtitle (option-label reading-direction reading-dirs)
-            :leading m.Icons/swap_horiz_rounded
-            :show-arrow? true
-            :on-tap (fn []
-                      (store/update-settings! :reading-direction (cycle-value reading-direction reading-dirs))
-                      nil)}
-           {:title "Page Turn Style"
-            :subtitle "Slide"
-            :leading m.Icons/touch_app_rounded
-            :show-arrow? true
-            :on-tap (fn [] nil)}]
-          :custom-config {:card-radius 16.0
-                          :item-radius 12.0
-                          :show-shadow true})
-         
-         (setting/settings-section
-          "Appearance"
-          [{:title "Theme"
-            :subtitle (option-label theme themes)
-            :leading m.Icons/palette_rounded
-            :show-arrow? true
-            :on-tap (fn []
-                      (store/update-settings! :theme (cycle-value theme themes))
-                      (t/set-current-theme! (cycle-value theme themes))
-                      nil)}]
-          :custom-config {:card-radius 16.0
-                          :item-radius 12.0
-                          :show-shadow true})
-         
-         (setting/settings-section
-          "About"
-          [{:title "Version"
-            :subtitle "MGL EPUB Reader 1.0.0"
-            :leading m.Icons/info_rounded
-            :show-arrow? true
-            :on-tap (fn [] nil)}]
-          :custom-config {:card-radius 16.0
-                          :item-radius 12.0
-                          :show-shadow true})]))))))
+   (m/Scaffold
+    .backgroundColor (t/bg)
+    .body
+    (m/SafeArea
+     .child
+     (rs/horizontal-list (:settings state)
+                         :group-config {:card-radius 16.0
+                                        :item-radius 12.0
+                                        :show-shadow true})))))

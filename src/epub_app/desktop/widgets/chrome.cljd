@@ -61,7 +61,7 @@
          .height (if active? 56.0 28.0)
          .decoration (m/BoxDecoration
                       .color (if active? t/primary (t/outline))
-                      .borderRadius (m.BorderRadius/circular 2.0))))))))))
+                      .borderRadius (m/BorderRadius.circular 2.0))))))))))
 
 (defn left-rail [book ui-state]
   (rail
@@ -74,7 +74,7 @@
      (m/Expanded
       .child
       (m/Padding
-       .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
+       .padding (m/EdgeInsets.symmetric .horizontal 6.0 .vertical 8.0)
        .child
        (ui/text (or (some-> book .-title) "")
                 {:size 16.0 :weight m.FontWeight/bold :max-lines 1})))
@@ -118,7 +118,7 @@
      (m/Expanded
       .child
       (m/Padding
-       .padding (m.EdgeInsets/symmetric .horizontal 6.0 .vertical 8.0)
+       .padding (m/EdgeInsets.symmetric .horizontal 6.0 .vertical 8.0)
        .child
        (ui/text
         (str (or (some-> (:chapter state) .-title) "")
