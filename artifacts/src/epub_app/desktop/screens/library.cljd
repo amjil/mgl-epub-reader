@@ -239,7 +239,8 @@
                        .child (ui/text (:error state)
                                        {:color t/danger :size 13.0}))))]))))))))
 
-;; Global settings panel
+;; Global settings panel.
+;; Layout: left vertical rail (close btn + Mongolian title) | expanded content.
 (defn- settings-panel [settings]
   (m/Container
    .width 520.0
@@ -253,19 +254,28 @@
    .child
    (m/SafeArea
     .child
-    (m/Column
+    (m/Row
+     .crossAxisAlignment m.CrossAxisAlignment/stretch
      .children
-     [(m/Padding
-       .padding (m/EdgeInsets.fromLTRB 16.0 20.0 16.0 12.0)
+     [;; Left vertical rail: close button at top, title centred below
+      (m/Container
+       .width 44.0
+       .decoration (m/BoxDecoration
+                    .border (m/Border
+                             .right (m/BorderSide .color (t/outline) .width 1.0)))
        .child
-       (m/Row
+       (m/Column
         .children
-        [(t/mongol-label "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ" :size 15.0 :weight m.FontWeight/bold)
-         (m/Spacer)
-         (ui/icon-btn m.Icons/close_rounded
+        [(ui/icon-btn m.Icons/close_rounded
                       (fn [] (store/set-ui! :settings-visible false))
-                      :size 18.0)]))
-      (ui/divider :margin (m/EdgeInsets.symmetric .horizontal 16.0))
+                      :size 18.0)
+         (m/Expanded
+          .child
+          (m/Center
+           .child
+           (t/mongol-label "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ"
+                           :size 15.0 :weight m.FontWeight/bold)))]))
+      ;; Settings content
       (m/Expanded
        .child
        (rs/horizontal-list settings
