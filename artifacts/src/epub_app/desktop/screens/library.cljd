@@ -11,6 +11,36 @@
             [epub-app.widgets.books :as books]
             [epub-app.widgets.ui :as ui]))
 
+;; Rail action button helper
+(defn- rail-action-btn [icon label on-tap & {:keys [primary?]}]
+  (m/Container
+   .decoration (m/BoxDecoration
+                .color (if primary? t/primary (t/surface-2))
+                .borderRadius (m/BorderRadius.circular t/radius-m)
+                .boxShadow (if primary? t/shadow-sm []))
+   .child
+   (m/Material
+    .color m.Colors/transparent
+    .child
+    (m/InkWell
+     .onTap on-tap
+     .borderRadius (m/BorderRadius.circular t/radius-m)
+     .child
+     (m/Padding
+      .padding (m/EdgeInsets.symmetric .horizontal 12.0 .vertical 12.0)
+      .child
+      (m/Column
+       .mainAxisSize m.MainAxisSize/min
+       .children
+       [(m/Icon icon
+                .color (if primary? m.Colors/white (t/ink-muted))
+                .size (if primary? 26.0 24.0))
+        (ui/gap-v 4)
+        (t/mongol-label label
+                        :size 11.0
+                        :color (if primary? m.Colors/white (t/ink-muted))
+                        :weight (if primary? m.FontWeight/w500 m.FontWeight/normal))]))))))
+
 ;; Improved book card
 (defn- book-card [ctx book]
   (f/widget
@@ -119,57 +149,15 @@
       (m/Column
        .mainAxisSize m.MainAxisSize/min
        .children
-       [(m/Container
-         .decoration (m/BoxDecoration
-                      .color t/primary
-                      .borderRadius (m/BorderRadius.circular t/radius-m)
-                      .boxShadow t/shadow-sm)
-         .child
-         (m/Material
-          .color m.Colors/transparent
-          .child
-          (m/InkWell
-           .onTap (fn [] (core/pick-and-import!))
-           .borderRadius (m/BorderRadius.circular t/radius-m)
-           .child
-           (m/Padding
-            .padding (m/EdgeInsets.symmetric .horizontal 12.0 .vertical 12.0)
-            .child
-            (m/Column
-             .mainAxisSize m.MainAxisSize/min
-             .children
-             [(m/Icon m.Icons/add_rounded
-                      .color m.Colors/white
-                      .size 26.0)
-              (ui/gap-v 4)
-              (t/mongol-label "ᠣᠷᠣᠭᠤᠯᠬᠤ" :size 11.0 :color m.Colors/white :weight m.FontWeight/w500)])))))
+       [(rail-action-btn m.Icons/add_rounded "ᠣᠷᠣᠭᠤᠯᠬᠤ"
+                         (fn [] (core/pick-and-import!))
+                         :primary? true)
         (ui/gap-v 6)
-        (m/Container
-         .decoration (m/BoxDecoration
-                      .color (t/surface-2)
-                      .borderRadius (m/BorderRadius.circular t/radius-m))
-         .child
-         (m/Material
-          .color m.Colors/transparent
-          .child
-          (m/InkWell
-           .onTap (fn [] (store/toggle-ui! :settings-visible))
-           .borderRadius (m/BorderRadius.circular t/radius-m)
-           .child
-           (m/Padding
-            .padding (m/EdgeInsets.symmetric .horizontal 12.0 .vertical 12.0)
-            .child
-            (m/Column
-             .mainAxisSize m.MainAxisSize/min
-             .children
-             [(m/Icon m.Icons/settings_rounded
-                      .color (t/ink-muted)
-                      .size 24.0)
-              (ui/gap-v 4)
-              (t/mongol-label "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ" :size 11.0 :color (t/ink-muted))])))))])))
+        (rail-action-btn m.Icons/settings_rounded "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ"
+                         (fn [] (store/toggle-ui! :settings-visible)))]))
      (m/Padding
       .padding (m/EdgeInsets.only .bottom 20.0)
-      .child (m/SizedBox.shrink))]))
+      .child (m/SizedBox.shrink))])))
 
 ;; Empty library state
 (defn- empty-library [state]
