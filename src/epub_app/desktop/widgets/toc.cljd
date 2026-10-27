@@ -8,7 +8,7 @@
 (defn- toc-tile [item]
   (mgl/MongolListTile
    .title (ui/text (.-title item) {:size 13.0})
-   .onTap (fn [] (core/open-toc-href! (.-href item)))))
+   .onTap (fn [] (core/open-toc-href! (.-href item)) nil)))
 
 (defn pane [items]
   (m/ColoredBox

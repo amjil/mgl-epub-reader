@@ -24,7 +24,7 @@
 (defn- hit-tile [hit]
   (mgl/MongolListTile
    .title (ui/text (.-snippet hit) {:size 13.0 :max-lines 2})
-   .onTap (fn [] (core/go-to-search-hit! hit))))
+   .onTap (fn [] (core/go-to-search-hit! hit) nil)))
 
 (defn- search-body [results]
   (m/Row
@@ -55,12 +55,13 @@
    .title (ui/text (or (.-title bm) "Bookmark") {:size 13.0 :max-lines 1})
    .onTap (fn []
             (store/set-ui! :bookmarks-visible false)
-            (core/go-to-position! (.-position bm)))
+            (core/go-to-position! (.-position bm))
+            nil)
    .trailing
    (m/IconButton
     .tooltip "Remove bookmark"
     .icon (m/Icon m.Icons/delete_outline .color t/danger)
-    .onPressed (fn [] (core/remove-bookmark! (.-id bm))))))
+    .onPressed (fn [] (core/remove-bookmark! (.-id bm)) nil))))
 
 (defn- bookmarks-body [bookmarks]
   (m/Row
@@ -82,12 +83,13 @@
    .title (ui/text (or (.-note ann) "Note") {:size 13.0 :max-lines 2})
    .onTap (fn []
             (store/set-ui! :notes-visible false)
-            (core/go-to-position! (.-start ann)))
+            (core/go-to-position! (.-start ann))
+            nil)
    .trailing
    (m/IconButton
     .tooltip "Remove note"
     .icon (m/Icon m.Icons/delete_outline .color t/danger)
-    .onPressed (fn [] (core/remove-annotation! (.-id ann))))))
+    .onPressed (fn [] (core/remove-annotation! (.-id ann)) nil))))
 
 (defn- notes-body [annotations]
   (m/Row
@@ -126,7 +128,7 @@
 
 (defn- mongol-action [label on-pressed]
   (mgl/MongolTextButton
-   .onPressed on-pressed
+   .onPressed (when on-pressed (fn [] (on-pressed) nil))
    .child (ui/text label {:size 13.0 :color t/primary})))
 
 (defn selection-toolbar []
