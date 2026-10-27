@@ -1,4 +1,5 @@
 (ns epub-app.mobile
+  "Mobile app shell with bottom nav and screens"
   (:require ["package:flutter/material.dart" :as m]
             [cljd.flutter :as f]
             [epub-app.mobile.screens.library :as library]
@@ -73,7 +74,7 @@
    (m/MaterialApp
     .title "MGL EPUB"
     .debugShowCheckedModeBanner false
-    .theme t/app-theme
-    .darkTheme t/app-theme-dark
+    .theme (t/app-theme)
+    .darkTheme (t/app-theme-dark)
     .themeMode (t/theme-mode (get-in state [:settings :app-appearance] :light))
     .home (root))))

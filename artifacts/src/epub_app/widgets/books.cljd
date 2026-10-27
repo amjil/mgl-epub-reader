@@ -1,0 +1,245 @@
+(ns epub-app.widgets.books
+  "Book components library - using mgl-components shared components"
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
+            ["dart:io" :as io]
+            [components.menu :as menu]
+            [epub-app.services.epub-core :as core]
+            [epub-app.state.store :as store]
+            [epub-app.theme :as t]
+            [epub-app.widgets.ui :as ui]))
+
+(def filters
+  [[:all "ᠪᠦᠬᠦ"]
+   [:recent "ᠰᠠᠶᠢᠬᠠᠨ"]
+   [:favorites "ᠬᠠᠳᠠᠭᠠᠯᠠᠭᠰᠠᠨ"]
+   [:finished "ᠤᠩᠰᠢᠭᠰᠠᠨ"]])
+
+(defn filtered-books [state]
+  (let [books (:library state)]
+    (case (:library-filter state)
+      :favorites (filterv #(.-favorite %) books)
+      :finished (filterv #(.-finished %) books)
+      :recent (vec (take 20 books))
+      (vec books))))
+
+(defn matches-query? [book query]
+  (let [q (.toLowerCase (or query ""))
+        title (.toLowerCase (or (.-title book) ""))
+        author (.toLowerCase (or (.-author book) ""))]
+    (and (seq q)
+         (or (.contains title q) (.contains author q)))))
+
+;; Delete confirmation dialog
+(defn confirm-delete! [ctx book]
+  (m/showDialog
+   .context ctx
+   .builder
+   (fn [c]
+     (mgl/MongolAlertDialog
+      .backgroundColor (t/surface)
+      .shape (m/RoundedRectangleBorder
+              .borderRadius (m/BorderRadius.circular t/radius-l))
+      .title (t/mongol-label "ᠬᠠᠰᠤᠬᠤ ᠤᠤ?" :size 18.0 :weight m.FontWeight/bold)
+      .content (m/Padding
+                .padding (m/EdgeInsets.symmetric .vertical 8.0)
+                .child (ui/text (or (.-title book) "")
+                                {:size 16.0 :color (t/ink-muted)}))
+      .actions
+      [(m/TextButton
+        .onPressed (fn [] (.pop (m/Navigator.of c)))
+        .child (t/mongol-label "ᠦᠭᠡᠢ" :color (t/ink-muted) :weight m.FontWeight/w500))
+       (m/ElevatedButton
+        .onPressed (fn []
+                     (.pop (m/Navigator.of c))
+                     (core/remove-book! (.-id book)))
+        .style (m/ElevatedButton.styleFrom
+                .backgroundColor t/danger
+                .foregroundColor m.Colors/white
+                .padding (m/EdgeInsets.symmetric .horizontal 16.0 .vertical 10.0))
+        .child (t/mongol-label "ᠬᠠᠰᠤᠬᠤ" :color m.Colors/white :weight m.FontWeight/w500))]))))
+
+;; Book menu - using components.menu
+(defn book-menu [ctx book]
+  (menu/custom-popup-menu
+   {:trigger-builder
+    (fn [show-menu]
+      (m/Material
+       .color m.Colors/transparent
+       .child
+       (m/InkWell
+        .onTap show-menu
+        .borderRadius (m/BorderRadius.circular t/radius-s)
+        .child
+        (m/Padding
+         .padding (m/EdgeInsets.all 6.0)
+         .child (m/Icon m.Icons/more_vert_rounded .color (t/ink-muted) .size 20.0)))))
+    :bg-color (t/surface)
+    :border-radius t/radius-l
+    :menu-width 300.0
+    :items [{:type :item
+             :title (if (.-favorite book) "ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ ᠴᠡᠭᠡᠷᠯᠡᠬᠦ" "ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ")
+             :leading (if (.-favorite book) m.Icons/star_rounded m.Icons/star_outline_rounded)
+             :leading-color t/accent
+             :on-tap #(core/toggle-favorite! (.-id book) (not (.-favorite book)))}
+            {:type :item
+             :title (if (.-finished book) "ᠤᠩᠰᠢᠭᠰᠠᠨ ᠦᠭᠡᠢ" "ᠤᠩᠰᠢᠭᠰᠠᠨ")
+             :leading m.Icons/check_circle_outline_rounded
+             :leading-color t/success
+             :on-tap #(core/set-finished! (.-id book) (not (.-finished book)))}
+            {:type :divider}
+            {:type :item
+             :title "ᠬᠠᠰᠤᠬᠤ"
+             :leading m.Icons/delete_outline_rounded
+             :leading-color t/danger
+             :on-tap #(confirm-delete! ctx book)}]}))
+
+;; Cover placeholder
+(defn cover-placeholder
+  [& {:keys [width height] :or {width 72.0 height 108.0}}]
+  (m/Container
+   .width width
+   .height height
+   .decoration (m/BoxDecoration
+                .gradient (m/LinearGradient
+                           .colors [t/primary-soft (t/fade t/primary-soft 0.5)]
+                           .begin m.Alignment/topLeft
+                           .end m.Alignment/bottomRight)
+                .borderRadius (m/BorderRadius.circular t/radius-m)
+                .boxShadow t/shadow-sm)
+   .child (m/Center
+           .child (m/Icon m.Icons/menu_book_rounded
+                          .color t/primary
+                          .size (* width 0.45)))))
+
+;; Cover thumbnail
+(defn cover-thumb
+  [book & {:keys [width height] :or {width 72.0 height 108.0}}]
+  (let [path (.-cover book)]
+    (if (and path (.existsSync (io/File. path)))
+      (m/Container
+       .decoration (m/BoxDecoration
+                    .borderRadius (m/BorderRadius.circular t/radius-m)
+                    .boxShadow t/shadow-sm)
+       .clipBehavior m.Clip/antiAlias
+       .child
+       (m/ClipRRect
+        .borderRadius (m/BorderRadius.circular t/radius-m)
+        .child
+        (m/Image.file
+         (io/File. path)
+         .width width
+         .height height
+         .fit m/BoxFit.cover
+         .errorBuilder (fn [_ _ _] (cover-placeholder :width width :height height)))))
+      (cover-placeholder :width width :height height))))
+
+;; Cover with badge
+(defn cover-with-badge
+  [book & {:keys [width height] :or {width 72.0 height 108.0}}]
+  (m/Stack
+   .children
+   [(cover-thumb book :width width :height height)
+    (if (.-favorite book)
+      (m/Positioned
+       .right 4.0
+       .bottom 4.0
+       .child
+       (m/Container
+        .padding (m/EdgeInsets.all 4.0)
+        .decoration (m/BoxDecoration
+                     .color m.Colors/white
+                     .borderRadius (m/BorderRadius.circular t/radius-xs)
+                     .boxShadow t/shadow-sm)
+        .child (m/Icon m.Icons/star_rounded .color t/accent .size 14.0)))
+      (m/SizedBox.shrink))]))
+
+;; Book card
+(defn library-card
+  [ctx book & {:keys [height margin] :or {height 240.0}}]
+  (let [author (or (.-author book) "")
+        progress (.-progress book)]
+    (ui/card-shell
+     (m/Row
+      .crossAxisAlignment m.CrossAxisAlignment/stretch
+      .children
+      [(cover-with-badge book :width 72.0 :height 108.0)
+       (ui/gap-h 10)
+       (m/Expanded
+        .child
+        (m/Column
+         .crossAxisAlignment m.CrossAxisAlignment/start
+         .mainAxisAlignment m.MainAxisAlignment/spaceBetween
+         .children
+         [(m/Column
+           .crossAxisAlignment m.CrossAxisAlignment/start
+           .children
+           [(ui/text (or (.-title book) "ᠨᠡᠷᠡᠢᠳᠦᠭᠡᠢ")
+                     {:size 17.0 :weight m.FontWeight/w600 :max-lines 2})
+            (when (seq author)
+              (m/Padding
+               .padding (m/EdgeInsets.only .top 6.0)
+               .child (ui/text author {:size 13.0 :color (t/ink-muted) :max-lines 1})))])
+          (when (> progress 0.0)
+            (m/Column
+             .crossAxisAlignment m.CrossAxisAlignment/start
+             .children
+             [(ui/text (str (int (* progress 100)) "%")
+                       {:size 11.0 :color t/primary :weight m.FontWeight/w500})
+              (ui/gap-v 3)
+              (m/Container
+               .height 2.5
+               .decoration (m/BoxDecoration
+                            .color (t/surface-2)
+                            .borderRadius (m/BorderRadius.circular 2.0))
+               .child
+               (m/FractionallySizedBox
+                .widthFactor progress
+                .child
+                (m/Container
+                 .decoration (m/BoxDecoration
+                              .gradient (m/LinearGradient
+                                         .colors [t/primary t/primary-deep])
+                              .borderRadius (m/BorderRadius.circular 2.0)))))]))]))
+       (ui/gap-h 8)
+       (ui/v-progress progress)
+       (m/Align
+        .alignment m.Alignment/topCenter
+        .child (book-menu ctx book))])
+     :width 210.0
+     :height height
+     :margin margin
+     :padding 14.0
+     :on-tap (fn []
+               (core/open-library-book! (.-id book))
+               nil))))
+
+;; Filter rail
+(defn filter-rail [selected]
+  (m/Column
+   .mainAxisSize m.MainAxisSize/min
+   .children
+   (mapv (fn [[id label]]
+           (m/Container
+            .margin (m/EdgeInsets.symmetric .vertical 4.0)
+            .decoration (when (= id selected)
+                          (m/BoxDecoration
+                           .color t/primary-soft
+                           .borderRadius (m/BorderRadius.circular t/radius-m)
+                           .border (m/Border.all .color t/primary .width 2.0)))
+            .child
+            (m/Material
+             .color m.Colors/transparent
+             .child
+             (m/InkWell
+              .onTap #(store/set-library-filter! id)
+              .borderRadius (m/BorderRadius.circular t/radius-m)
+              .child
+              (m/Padding
+               .padding (m/EdgeInsets.symmetric .horizontal 12.0 .vertical 12.0)
+               .child
+               (t/mongol-label label
+                               :size 14.0
+                               :color (if (= id selected) t/primary (t/ink-muted))
+                               :weight (if (= id selected) m.FontWeight/w600 m.FontWeight/normal)))))))
+         filters)))

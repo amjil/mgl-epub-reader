@@ -1,0 +1,223 @@
+(ns epub-app.theme
+  "Tenger design system — modern design system optimized for Traditional Mongolian script"
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]))
+
+(def font "OyunQaganTig")
+
+;; Primary colors - grassland blue
+(def primary (m/Color 0xFF2D7DB5))
+(def primary-soft (m/Color 0xFFE8F4FB))
+(def primary-deep (m/Color 0xFF1A5F8E))
+(def primary-hover (m/Color 0xFF3B8FC7))
+
+;; Accent color - gold
+(def accent (m/Color 0xFFD4A027))
+(def accent-soft (m/Color 0xFFFFF4D6))
+
+;; Light theme backgrounds
+(def bg-light (m/Color 0xFFF5F1EA))
+(def surface-light (m/Color 0xFFFFFDF8))
+(def surface-light-2 (m/Color 0xFFEFEAE0))
+
+;; Sepia theme backgrounds
+(def bg-sepia (m/Color 0xFFF4EBD9))
+(def surface-sepia (m/Color 0xFFFFFAF0))
+(def surface-sepia-2 (m/Color 0xFFE8DCC6))
+
+;; Dark theme backgrounds
+(def bg-dark (m/Color 0xFF1C1B19))
+(def surface-dark (m/Color 0xFF2A2826))
+(def surface-dark-2 (m/Color 0xFF3A3834))
+
+;; Pure black theme backgrounds (OLED friendly)
+(def bg-black (m/Color 0xFF000000))
+(def surface-black (m/Color 0xFF0F0F0F))
+(def surface-black-2 (m/Color 0xFF1A1A1A))
+
+;; Text colors
+(def ink-light (m/Color 0xFF1A1714))
+(def ink-light-muted (m/Color 0xFF6F6962))
+(def ink-light-faint (m/Color 0xFFA39C94))
+
+(def ink-dark (m/Color 0xFFE8E6E3))
+(def ink-dark-muted (m/Color 0xFFB0ADA8))
+(def ink-dark-faint (m/Color 0xFF7A7772))
+
+;; Divider colors
+(def outline-light (m/Color 0xFFE4DDD3))
+(def outline-dark (m/Color 0xFF3F3D3A))
+
+;; Functional colors
+(def danger (m/Color 0xFFD14343))
+(def success (m/Color 0xFF4CAF50))
+(def warning (m/Color 0xFFF57C00))
+(def info (m/Color 0xFF2196F3))
+
+;; Border radius
+(def radius-xs 6.0)
+(def radius-s 10.0)
+(def radius-m 16.0)
+(def radius-l 20.0)
+(def radius-xl 24.0)
+
+;; UI size constants
+(def chrome-width 60.0)
+(def bottom-nav-height 68.0)
+(def toc-pane-width 260.0)
+(def toc-pane-min-width 180.0)
+(def toc-pane-max-width 520.0)
+(def side-panel-width 340.0)
+(def pane-anim (dart:core/Duration. .milliseconds 220))
+
+;; Shadows
+(def shadow-sm
+  [(m/BoxShadow
+    .color (m/Color 0x0A000000)
+    .blurRadius 8.0
+    .offset (m/Offset. 0.0 2.0))])
+
+(def shadow-md
+  [(m/BoxShadow
+    .color (m/Color 0x14000000)
+    .blurRadius 16.0
+    .offset (m/Offset. 0.0 4.0))])
+
+(def shadow-lg
+  [(m/BoxShadow
+    .color (m/Color 0x1E000000)
+    .blurRadius 24.0
+    .offset (m/Offset. 0.0 8.0))])
+
+;; Theme configuration map
+(defn theme-colors [theme-key]
+  (case theme-key
+    :light {:bg bg-light
+            :surface surface-light
+            :surface-2 surface-light-2
+            :ink ink-light
+            :ink-muted ink-light-muted
+            :ink-faint ink-light-faint
+            :outline outline-light
+            :card-shadow shadow-md}
+    
+    :sepia {:bg bg-sepia
+            :surface surface-sepia
+            :surface-2 surface-sepia-2
+            :ink ink-light
+            :ink-muted ink-light-muted
+            :ink-faint ink-light-faint
+            :outline outline-light
+            :card-shadow shadow-md}
+    
+    :dark {:bg bg-dark
+           :surface surface-dark
+           :surface-2 surface-dark-2
+           :ink ink-dark
+           :ink-muted ink-dark-muted
+           :ink-faint ink-dark-faint
+           :outline outline-dark
+           :card-shadow shadow-sm}
+    
+    :black {:bg bg-black
+            :surface surface-black
+            :surface-2 surface-black-2
+            :ink ink-dark
+            :ink-muted ink-dark-muted
+            :ink-faint ink-dark-faint
+            :outline outline-dark
+            :card-shadow shadow-sm}
+    
+    ;; Default to light theme
+    {:bg bg-light
+     :surface surface-light
+     :surface-2 surface-light-2
+     :ink ink-light
+     :ink-muted ink-light-muted
+     :ink-faint ink-light-faint
+     :outline outline-light
+     :card-shadow shadow-md}))
+
+;; Use atom for current theme - ClojureDart compatible
+(defonce current-theme-atom (atom :light))
+
+(defn set-current-theme! [theme-key]
+  (reset! current-theme-atom theme-key))
+
+(defn apply-appearance! [theme-key]
+  (set-current-theme! theme-key))
+
+(defn theme-mode [mode]
+  (case (keyword mode)
+    :dark m/ThemeMode.dark
+    :light m/ThemeMode.light
+    m/ThemeMode.light))
+
+(defn current-theme []
+  @current-theme-atom)
+
+;; Convenience accessors - using atom
+(defn bg [] (get (theme-colors @current-theme-atom) :bg))
+(defn surface [] (get (theme-colors @current-theme-atom) :surface))
+(defn surface-2 [] (get (theme-colors @current-theme-atom) :surface-2))
+(defn ink [] (get (theme-colors @current-theme-atom) :ink))
+(defn ink-muted [] (get (theme-colors @current-theme-atom) :ink-muted))
+(defn ink-faint [] (get (theme-colors @current-theme-atom) :ink-faint))
+(defn outline [] (get (theme-colors @current-theme-atom) :outline))
+(defn card-shadow [] (get (theme-colors @current-theme-atom) :card-shadow))
+
+(defn fade [color opacity]
+  (.withOpacity ^m/Color color opacity))
+
+(defn mongol-style
+  [& {:keys [size weight color]
+      :or {size 16.0 color (ink)}}]
+  (m/TextStyle
+   .fontFamily font
+   .fontSize size
+   .fontWeight (or weight m.FontWeight/normal)
+   .color color
+   .height 1.4
+   .letterSpacing 0.3))
+
+(defn mongol-label
+  [text & {:keys [size color weight max-lines align]
+           :or {size 16.0 color (ink) weight m.FontWeight/normal}}]
+  (mgl/MongolText
+   (or text "")
+   .maxLines (when max-lines (int max-lines))
+   .overflow (when max-lines m.TextOverflow/ellipsis)
+   .textAlign align
+   .style (mongol-style :size size :color color :weight weight)))
+
+(defn app-theme []
+  (m/ThemeData
+   .useMaterial3 true
+   .brightness m.Brightness/light
+   .fontFamily font
+   .primaryColor primary
+   .scaffoldBackgroundColor (bg)
+   .colorScheme (m/ColorScheme.fromSeed
+                 .seedColor primary
+                 .brightness m.Brightness/light)
+   .appBarTheme (m/AppBarTheme
+                 .elevation 0.0
+                 .backgroundColor (bg)
+                 .foregroundColor (ink)
+                 .titleTextStyle (mongol-style :size 18.0 :weight m.FontWeight/w600))))
+
+(defn app-theme-dark []
+  (m/ThemeData
+   .useMaterial3 true
+   .brightness m.Brightness/dark
+   .fontFamily font
+   .primaryColor primary
+   .scaffoldBackgroundColor bg-dark
+   .colorScheme (m/ColorScheme.fromSeed
+                 .seedColor primary
+                 .brightness m.Brightness/dark)
+   .appBarTheme (m/AppBarTheme
+                 .elevation 0.0
+                 .backgroundColor bg-dark
+                 .foregroundColor ink-dark
+                 .titleTextStyle (mongol-style :size 18.0 :weight m.FontWeight/w600))))

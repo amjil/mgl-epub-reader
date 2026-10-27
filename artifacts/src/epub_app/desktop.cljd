@@ -1,0 +1,34 @@
+(ns epub-app.desktop
+  "Desktop app with keyboard shortcuts and large-screen layouts"
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:flutter/services.dart" :as s]
+            [cljd.flutter :as f]
+            [epub-app.desktop.screens.library :as library]
+            [epub-app.desktop.screens.reader :as reader]
+            [epub-app.desktop.shortcuts :as shortcuts]
+            [epub-app.desktop.widgets.keyboard :as kb]
+            [epub-app.services.epub-core :as core]
+            [epub-app.state.store :as store]
+            [epub-app.theme :as t]))
+
+(defn app []
+  (f/widget
+   :watch [state store/app-state]
+   (shortcuts/with-shortcuts
+    {(shortcuts/cmd-key s.LogicalKeyboardKey/keyO)
+     (fn [] (core/pick-and-import!) nil)}
+    (m/MaterialApp
+     .title "MGL EPUB"
+     .debugShowCheckedModeBanner false
+     .theme (t/app-theme)
+     .darkTheme (t/app-theme-dark)
+     .themeMode (t/theme-mode (get-in state [:settings :app-appearance] :light))
+     .home
+     (if (= :builtin (get-in state [:settings :ime-mode] :builtin))
+       (kb/wrap
+        (if (:book state)
+          (reader/screen)
+          (library/screen)))
+       (if (:book state)
+         (reader/screen)
+         (library/screen)))))))
