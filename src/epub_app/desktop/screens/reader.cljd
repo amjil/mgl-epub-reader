@@ -69,7 +69,7 @@
     .child
     (m/GestureDetector
      .behavior m.HitTestBehavior/translucent
-     .onTap on-tap
+     .onTap (when on-tap (fn [] (on-tap) nil))
      .child
      (m/AnimatedContainer
       .duration t/pane-anim
@@ -103,7 +103,7 @@
                    (store/set-highlight! nil)
                    (when (:selection state)
                      (core/clear-selection!)))
-          .onDoubleTap (fn [] (core/add-bookmark!))
+          .onDoubleTap (fn [] (core/add-bookmark!) nil)
           .onHorizontalDragEnd
           (fn [details]
             (let [v (or (.-primaryVelocity details) 0.0)]
