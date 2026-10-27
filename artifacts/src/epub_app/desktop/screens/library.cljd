@@ -1,0 +1,328 @@
+(ns epub-app.desktop.screens.library
+  "Desktop library interface - modern design with Traditional Mongolian support"
+  (:require ["package:flutter/material.dart" :as m]
+            ["package:flutter/services.dart" :as s]
+            [cljd.flutter :as f]
+            [epub-app.desktop.shortcuts :as shortcuts]
+            [epub-app.reader-settings :as rs]
+            [epub-app.services.epub-core :as core]
+            [epub-app.state.store :as store]
+            [epub-app.theme :as t]
+            [epub-app.widgets.books :as books]
+            [epub-app.widgets.ui :as ui]))
+
+;; Improved book card
+(defn- book-card [ctx book]
+  (f/widget
+   :managed [!hover (atom false) :dispose nil]
+   :watch [hover? !hover]
+   (let [author (or (.-author book) "")
+         progress (.-progress book)
+         pct-label (ui/text (str (int (* progress 100)) "%")
+                            {:size 10.0 :color t/primary :weight m.FontWeight/w500})
+         bar (m/Container
+              .height 3.0
+              .decoration (m/BoxDecoration
+                           .color (t/surface-2)
+                           .borderRadius (m/BorderRadius.circular 2.0))
+              .child (m/FractionallySizedBox
+                      .widthFactor progress
+                      .child (m/Container
+                              .decoration (m/BoxDecoration
+                                           .gradient (m/LinearGradient
+                                                      .colors [t/primary t/primary-deep])
+                                           .borderRadius (m/BorderRadius.circular 2.0)))))
+         progress-block (when (> progress 0.0)
+                          (m/Column
+                           .crossAxisAlignment m.CrossAxisAlignment/start
+                           .children [pct-label (ui/gap-v 4) bar]))
+         title-block (m/Column
+                      .crossAxisAlignment m.CrossAxisAlignment/start
+                      .children
+                      (filterv some?
+                               [(ui/text (or (.-title book) "ᠨᠡᠷᠡᠢᠳᠦᠭᠡᠢ")
+                                         {:size 15.0 :weight m.FontWeight/w600 :max-lines 2})
+                                (when (seq author)
+                                  (m/Padding
+                                   .padding (m/EdgeInsets.only .top 6.0)
+                                   .child (ui/text author {:size 11.0 :color (t/ink-muted) :max-lines 1}))) ] ) ) ]
+     (m/MouseRegion
+      .cursor m.SystemMouseCursors/click
+      .onEnter (fn [_] (reset! !hover true) nil)
+      .onExit (fn [_] (reset! !hover false) nil)
+      .child
+      (m/AnimatedContainer
+       .duration (dart:core/Duration. .milliseconds 200)
+       .child
+       (ui/card-shell
+        (m/Row
+         .crossAxisAlignment m.CrossAxisAlignment/stretch
+         .children
+         [(books/cover-with-badge book :width 90.0 :height 130.0)
+          (ui/gap-h 12)
+          (m/Expanded
+           .child
+           (m/Column
+            .crossAxisAlignment m.CrossAxisAlignment/start
+            .mainAxisAlignment m.MainAxisAlignment/spaceBetween
+            .children (filterv some? [title-block progress-block])))
+          (ui/gap-h 10)
+          (ui/v-progress progress)
+          (books/book-menu ctx book)])
+        :width 260.0
+        :elevated? hover?
+        :padding 16.0
+        :on-tap (fn [] (core/open-library-book! (.-id book)))))))))
+
+;; Library sidebar
+
+(defn- rail-action-btn [{:keys [bg icon icon-color label label-color shadow? on-tap]}]
+  (m/Container
+   .decoration (m/BoxDecoration
+                .color bg
+                .borderRadius (m/BorderRadius.circular t/radius-m)
+                .boxShadow (when shadow? t/shadow-sm))
+   .child
+   (m/Material
+    .color m.Colors/transparent
+    .child
+    (m/InkWell
+     .onTap on-tap
+     .borderRadius (m/BorderRadius.circular t/radius-m)
+     .child
+     (m/Padding
+      .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 10.0)
+      .child
+      (m/Column
+       .mainAxisSize m.MainAxisSize/min
+       .children
+       [(m/Icon icon .color icon-color .size 22.0)
+        (ui/gap-v 4)
+        (t/mongol-label label :size 11.0 :color label-color :weight m.FontWeight/w500)]))))))
+
+(defn- library-rail [state]
+  (m/Container
+   .width 92.0
+   .decoration (m/BoxDecoration
+                .color (t/surface)
+                .border (m/Border .right (m/BorderSide .color (t/outline) .width 1.0))
+                .boxShadow [(m/BoxShadow
+                             .color (t/fade (t/ink) 0.03)
+                             .blurRadius 12.0
+                             .offset (m/Offset. 2.0 0.0))])
+   .child
+   (m/Column
+    .children
+    [(m/Padding
+      .padding (m/EdgeInsets.fromLTRB 10.0 28.0 10.0 12.0)
+      .child
+      (m/Container
+       .padding (m/EdgeInsets.symmetric .horizontal 10.0 .vertical 11.0)
+       .decoration (m/BoxDecoration
+                    .gradient (m/LinearGradient
+                               .colors [t/primary t/primary-deep]
+                               .begin m.Alignment/topLeft
+                               .end m.Alignment/bottomRight)
+                    .borderRadius (m/BorderRadius.circular t/radius-l)
+                    .boxShadow t/shadow-md)
+       .child
+       (m/Column
+        .children
+        [(m/Icon m.Icons/auto_stories_rounded
+                 .color m.Colors/white
+                 .size 26.0)
+         (ui/gap-v 8)
+         (t/mongol-label "ᠨᠣᠮ" :size 16.0 :weight m.FontWeight/bold :color m.Colors/white)])))
+     (ui/gap-v 8)
+     (m/Expanded
+      .child
+      (m/SingleChildScrollView
+       .padding (m/EdgeInsets.symmetric .horizontal 10.0 .vertical 8.0)
+       .child (books/filter-rail (:library-filter state))))
+     (m/Padding
+      .padding (m/EdgeInsets.fromLTRB 10.0 8.0 10.0 20.0)
+      .child
+      (m/Column
+       .mainAxisSize m.MainAxisSize/min
+       .children
+       [(rail-action-btn {:bg t/primary
+                          :icon m.Icons/add_rounded
+                          :icon-color m.Colors/white
+                          :label "ᠣᠷᠣᠭᠤᠯᠬᠤ"
+                          :label-color m.Colors/white
+                          :shadow? true
+                          :on-tap (fn [] (core/pick-and-import!))})
+        (ui/gap-v 6)
+        (rail-action-btn {:bg (t/surface-2)
+                          :icon m.Icons/settings_rounded
+                          :icon-color (t/ink-muted)
+                          :label "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ"
+                          :label-color (t/ink-muted)
+                          :shadow? false
+                          :on-tap (fn [] (store/toggle-ui! :settings-visible))})]))])))
+
+;; Empty library state — scrollable so it never overflows on short windows.
+;; LayoutBuilder + SingleChildScrollView + ConstrainedBox(minHeight) keeps the
+;; column centred in tall windows while allowing it to scroll in short ones.
+(defn- empty-library [state]
+  (m/LayoutBuilder
+   .builder
+   (fn [_ constraints]
+     (m/SingleChildScrollView
+      .padding (m/EdgeInsets.symmetric .vertical 40.0)
+      .child
+      (m/ConstrainedBox
+       .constraints (m/BoxConstraints
+                     .minHeight (max 0.0 (- (.-maxHeight constraints) 80.0)))
+       .child
+       (m/Center
+        .child
+        (m/Column
+         .mainAxisSize m.MainAxisSize/min
+         .children
+         (filterv some?
+                  [(m/Container
+                    .width 120.0
+                    .height 120.0
+                    .decoration (m/BoxDecoration
+                                 .gradient (m/LinearGradient
+                                            .colors [t/primary-soft
+                                                     (t/fade t/primary-soft 0.4)]
+                                            .begin m.Alignment/topLeft
+                                            .end m.Alignment/bottomRight)
+                                 .borderRadius (m/BorderRadius.circular t/radius-xl)
+                                 .boxShadow t/shadow-lg)
+                    .child (m/Center
+                            .child (m/Icon m.Icons/auto_stories_rounded
+                                          .size 60.0
+                                          .color t/primary)))
+                   (ui/gap-v 24)
+                   (t/mongol-label "ᠮᠣᠩᠭᠤᠯ ᠨᠣᠮ ᠤᠩᠰᠢᠭᠴᠢ"
+                                   :size 18.0 :weight m.FontWeight/bold)
+                   (ui/gap-v 8)
+                   (ui/text "Click ‘Import’ or press Cmd+O to add EPUB books"
+                            {:size 13.0 :color (t/ink-muted)})
+                   (ui/gap-v 18)
+                   (m/ElevatedButton
+                    .onPressed (fn [] (core/pick-and-import!))
+                    .style (m/ElevatedButton.styleFrom
+                            .backgroundColor t/primary
+                            .foregroundColor m.Colors/white
+                            .padding (m/EdgeInsets.symmetric
+                                      .horizontal 24.0 .vertical 14.0)
+                            .shape (m/RoundedRectangleBorder
+                                    .borderRadius (m/BorderRadius.circular t/radius-m))
+                            .elevation 2.0)
+                    .child
+                    (m/Row
+                     .mainAxisSize m.MainAxisSize/min
+                     .children
+                     [(m/Icon m.Icons/upload_file_rounded
+                              .color m.Colors/white .size 20.0)
+                      (ui/gap-h 8)
+                      (ui/text "Import Books"
+                               {:color m.Colors/white
+                                :size 13.0
+                                :weight m.FontWeight/w500})]))
+                   (when (:error state)
+                     (m/Padding
+                      .padding (m/EdgeInsets.only .top 20.0)
+                      .child
+                      (m/Container
+                       .padding (m/EdgeInsets.symmetric
+                                 .horizontal 20.0 .vertical 12.0)
+                       .constraints (m/BoxConstraints .maxWidth 440.0)
+                       .decoration (m/BoxDecoration
+                                    .color (t/fade t/danger 0.1)
+                                    .borderRadius (m/BorderRadius.circular t/radius-m)
+                                    .border (m/Border.all .color t/danger .width 1.0))
+                       .child (ui/text (:error state)
+                                       {:color t/danger :size 13.0}))))]))))))))
+
+;; Global settings panel
+(defn- settings-panel [settings]
+  (m/Container
+   .width 520.0
+   .decoration (m/BoxDecoration
+                .color (t/surface)
+                .border (m/Border .left (m/BorderSide .color (t/outline) .width 1.0))
+                .boxShadow [(m/BoxShadow
+                             .color (t/fade (t/ink) 0.03)
+                             .blurRadius 12.0
+                             .offset (m/Offset. -2.0 0.0))])
+   .child
+   (m/SafeArea
+    .child
+    (m/Column
+     .children
+     [(m/Padding
+       .padding (m/EdgeInsets.fromLTRB 16.0 20.0 16.0 12.0)
+       .child
+       (m/Row
+        .children
+        [(t/mongol-label "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ" :size 15.0 :weight m.FontWeight/bold)
+         (m/Spacer)
+         (ui/icon-btn m.Icons/close_rounded
+                      (fn [] (store/set-ui! :settings-visible false))
+                      :size 18.0)]))
+      (ui/divider :margin (m/EdgeInsets.symmetric .horizontal 16.0))
+      (m/Expanded
+       .child
+       (rs/horizontal-list settings
+                           :group-config {:min-item-width 120.0
+                                          :max-item-width 150.0
+                                          :card-radius 12.0
+                                          :show-shadow false}
+                           :wheel-horizontal? true))]))))
+
+(defn screen []
+  (f/widget
+   :watch [state store/app-state]
+   :context ctx
+   (shortcuts/with-shortcuts
+    {(shortcuts/cmd-key s/LogicalKeyboardKey.keyO)
+     (fn [] (core/pick-and-import!) nil)}
+    (m/Focus
+     .autofocus true
+     .child
+     (m/Scaffold
+      .backgroundColor (t/bg)
+      .body
+      (m/SafeArea
+       .child
+       (m/Row
+        .crossAxisAlignment m.CrossAxisAlignment/stretch
+        .children
+        (filterv some?
+                 [(library-rail state)
+                  (m/Expanded
+                   .child
+                   (if (empty? (:library state))
+                     (empty-library state)
+                     (let [shown (books/filtered-books state)]
+                       (if (empty? shown)
+                         (m/Center
+                          .child
+                          (m/Column
+                           .mainAxisSize m.MainAxisSize/min
+                           .children
+                           [(m/Container
+                             .width 68.0
+                             .height 68.0
+                             .decoration (m/BoxDecoration
+                                          .color (t/fade t/primary-soft 0.6)
+                                          .borderRadius (m/BorderRadius.circular t/radius-l))
+                             .child (m/Center
+                                     .child (m/Icon m.Icons/filter_list_off .size 36.0 .color t/primary)))
+                            (ui/gap-v 16)
+                            (t/mongol-label "ᠰᠢᠯᠭᠠᠭᠰᠠᠨ ᠨᠣᠮ ᠦᠭᠡᠢ"
+                                            :size 15.0 :weight m.FontWeight/w600)
+                            (ui/gap-v 6)
+                            (t/mongol-label "ᠰᠢᠯᠭᠠᠬᠤ ᠰᠣᠩᠭᠣᠬᠤ"
+                                            :size 12.0 :color (t/ink-muted))]))
+                         (m/ListView
+                          .scrollDirection m.Axis/horizontal
+                          .padding (m/EdgeInsets.fromLTRB 24.0 20.0 32.0 20.0)
+                          .children (vec (map #(book-card ctx %) shown)))))))
+                  (when (get-in state [:ui :settings-visible])
+                    (settings-panel (:settings state)))]))))))))

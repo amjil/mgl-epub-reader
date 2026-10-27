@@ -23,7 +23,7 @@
 
 (defn- hit-tile [hit]
   (mgl/MongolListTile
-   .title (ui/text (.-snippet hit) {:size 14.0 :max-lines 2})
+   .title (ui/text (.-snippet hit) {:size 13.0 :max-lines 2})
    .onTap (fn [] (core/go-to-search-hit! hit))))
 
 (defn- search-body [results]
@@ -33,26 +33,26 @@
      .width 72.0
      .child
      (m/Padding
-      .padding (m.EdgeInsets/symmetric .horizontal 10.0 .vertical 12.0)
+      .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 10.0)
       .child
       (mgl/MongolTextField
        .autofocus true
        .decoration (m/InputDecoration
                     .hintText "Search"
                     .border m.InputBorder/none
-                    .hintStyle (t/mongol-style :size 16.0 :color (t/ink-faint)))
-       .style (t/mongol-style :size 16.0)
+                    .hintStyle (t/mongol-style :size 13.0 :color (t/ink-faint)))
+       .style (t/mongol-style :size 13.0)
        .onSubmitted (fn [q] (core/search! q)))))
     (m/Expanded
      .child
      (m/ListView
       .scrollDirection m.Axis/horizontal
-      .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+      .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
       .children (vec (map hit-tile results))))]))
 
 (defn- bookmark-tile [bm]
   (mgl/MongolListTile
-   .title (ui/text (or (.-title bm) "Bookmark") {:size 15.0 :max-lines 1})
+   .title (ui/text (or (.-title bm) "Bookmark") {:size 13.0 :max-lines 1})
    .onTap (fn []
             (store/set-ui! :bookmarks-visible false)
             (core/go-to-position! (.-position bm)))
@@ -66,20 +66,20 @@
   (m/Row
    .children
    [(m/Padding
-     .padding (m.EdgeInsets/fromLTRB 12.0 16.0 8.0 16.0)
-     .child (ui/text "Bookmarks" {:size 16.0 :weight m.FontWeight/bold}))
+     .padding (m/EdgeInsets.fromLTRB 12.0 16.0 8.0 16.0)
+     .child (t/mongol-label "ᠳᠡᠮᠳᠡᠭ" :size 13.0 :weight m.FontWeight/bold))
     (m/Expanded
      .child
      (if (empty? bookmarks)
        (ui/empty-state m.Icons/bookmarks_outlined "No bookmarks")
        (m/ListView
         .scrollDirection m.Axis/horizontal
-        .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+        .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
         .children (vec (map bookmark-tile bookmarks)))))]))
 
 (defn- note-tile [ann]
   (mgl/MongolListTile
-   .title (ui/text (or (.-note ann) "Note") {:size 15.0 :max-lines 2})
+   .title (ui/text (or (.-note ann) "Note") {:size 13.0 :max-lines 2})
    .onTap (fn []
             (store/set-ui! :notes-visible false)
             (core/go-to-position! (.-start ann)))
@@ -93,15 +93,15 @@
   (m/Row
    .children
    [(m/Padding
-     .padding (m.EdgeInsets/fromLTRB 12.0 16.0 8.0 16.0)
-     .child (ui/text "Notes" {:size 16.0 :weight m.FontWeight/bold}))
+     .padding (m/EdgeInsets.fromLTRB 12.0 16.0 8.0 16.0)
+     .child (t/mongol-label "ᠲᠡᠮᠳᠡᠭᠯᠡᠯ" :size 13.0 :weight m.FontWeight/bold))
     (m/Expanded
      .child
      (if (empty? annotations)
        (ui/empty-state m.Icons/notes_outlined "No notes")
        (m/ListView
         .scrollDirection m.Axis/horizontal
-        .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 12.0)
+        .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
         .children (vec (map note-tile annotations)))))]))
 
 (defn docked
@@ -136,10 +136,10 @@
    (m/Material
     .elevation 8.0
     .color (t/surface)
-    .borderRadius (m.BorderRadius/circular 12.0)
+    .borderRadius (m/BorderRadius.circular 12.0)
     .child
     (m/Padding
-     .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 8.0)
+     .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 8.0)
      .child
      (m/SingleChildScrollView
       .scrollDirection m.Axis/horizontal
@@ -161,15 +161,15 @@
    (m/Material
     .elevation 10.0
     .color (t/surface)
-    .borderRadius (m.BorderRadius/circular 12.0)
+    .borderRadius (m/BorderRadius.circular 12.0)
     .child
     (m/Padding
-     .padding (m.EdgeInsets/all 16.0)
+     .padding (m/EdgeInsets.all 16.0)
      .child
      (m/Row
       .crossAxisAlignment m.CrossAxisAlignment/stretch
       .children
-      [(ui/text "Note" {:size 16.0 :weight m.FontWeight/bold})
+      [(ui/text "Note" {:size 13.0 :weight m.FontWeight/bold})
        (ui/gap-h 12)
        (m/Expanded
         .child
@@ -179,8 +179,8 @@
          .decoration (m/InputDecoration
                       .hintText "Write a note"
                       .border m.InputBorder/none
-                      .hintStyle (t/mongol-style :size 16.0 :color (t/ink-faint)))
-         .style (t/mongol-style :size 16.0)
+                      .hintStyle (t/mongol-style :size 13.0 :color (t/ink-faint)))
+         .style (t/mongol-style :size 13.0)
          .onChanged (fn [txt] (store/set-note-draft! txt))
          .onSubmitted (fn [txt] (core/save-note! txt))))
        (ui/gap-h 8)

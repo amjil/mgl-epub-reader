@@ -174,7 +174,7 @@
                    .controller ctrl
                    .scrollDirection m.Axis/horizontal
                    .physics (m/ClampingScrollPhysics.)
-                   .padding (m.EdgeInsets/symmetric .vertical 8.0)
+                   .padding (m/EdgeInsets.symmetric .vertical 8.0)
                    .children (vec (sections settings
                                             :group-config group-config
                                             :on-ime-mode-changed on-ime-mode-changed))))]

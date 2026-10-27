@@ -19,7 +19,7 @@
    (let [author (or (.-author book) "")
          progress (.-progress book)
          pct-label (ui/text (str (int (* progress 100)) "%")
-                            {:size 12.0 :color t/primary :weight m.FontWeight/w500})
+                            {:size 10.0 :color t/primary :weight m.FontWeight/w500})
          bar (m/Container
               .height 3.0
               .decoration (m/BoxDecoration
@@ -41,11 +41,11 @@
                       .children
                       (filterv some?
                                [(ui/text (or (.-title book) "ᠨᠡᠷᠡᠢᠳᠦᠭᠡᠢ")
-                                         {:size 17.0 :weight m.FontWeight/w600 :max-lines 2})
+                                         {:size 15.0 :weight m.FontWeight/w600 :max-lines 2})
                                 (when (seq author)
                                   (m/Padding
                                    .padding (m/EdgeInsets.only .top 6.0)
-                                   .child (ui/text author {:size 13.0 :color (t/ink-muted) :max-lines 1}))) ] ) ) ]
+                                   .child (ui/text author {:size 11.0 :color (t/ink-muted) :max-lines 1}))) ] ) ) ]
      (m/MouseRegion
       .cursor m.SystemMouseCursors/click
       .onEnter (fn [_] (reset! !hover true) nil)
@@ -91,12 +91,12 @@
      .borderRadius (m/BorderRadius.circular t/radius-m)
      .child
      (m/Padding
-      .padding (m/EdgeInsets.symmetric .horizontal 12.0 .vertical 12.0)
+      .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 10.0)
       .child
       (m/Column
        .mainAxisSize m.MainAxisSize/min
        .children
-       [(m/Icon icon .color icon-color .size 26.0)
+       [(m/Icon icon .color icon-color .size 22.0)
         (ui/gap-v 4)
         (t/mongol-label label :size 11.0 :color label-color :weight m.FontWeight/w500)]))))))
 
@@ -117,7 +117,7 @@
       .padding (m/EdgeInsets.fromLTRB 10.0 28.0 10.0 12.0)
       .child
       (m/Container
-       .padding (m/EdgeInsets.symmetric .horizontal 12.0 .vertical 14.0)
+       .padding (m/EdgeInsets.symmetric .horizontal 10.0 .vertical 11.0)
        .decoration (m/BoxDecoration
                     .gradient (m/LinearGradient
                                .colors [t/primary t/primary-deep]
@@ -130,9 +130,9 @@
         .children
         [(m/Icon m.Icons/auto_stories_rounded
                  .color m.Colors/white
-                 .size 32.0)
+                 .size 26.0)
          (ui/gap-v 8)
-         (t/mongol-label "ᠨᠣᠮ" :size 20.0 :weight m.FontWeight/bold :color m.Colors/white)])))
+         (t/mongol-label "ᠨᠣᠮ" :size 16.0 :weight m.FontWeight/bold :color m.Colors/white)])))
      (ui/gap-v 8)
      (m/Expanded
       .child
@@ -161,64 +161,83 @@
                           :shadow? false
                           :on-tap (fn [] (store/toggle-ui! :settings-visible))})]))])))
 
-;; Empty library state
+;; Empty library state — scrollable so it never overflows on short windows.
+;; LayoutBuilder + SingleChildScrollView + ConstrainedBox(minHeight) keeps the
+;; column centred in tall windows while allowing it to scroll in short ones.
 (defn- empty-library [state]
-  (m/Center
-   .child
-   (m/Column
-    .mainAxisSize m.MainAxisSize/min
-    .children
-    (filterv some?
-             [(m/Container
-      .width 140.0
-      .height 140.0
-      .decoration (m/BoxDecoration
-                   .gradient (m/LinearGradient
-                              .colors [t/primary-soft (t/fade t/primary-soft 0.4)]
-                              .begin m.Alignment/topLeft
-                              .end m.Alignment/bottomRight)
-                   .borderRadius (m/BorderRadius.circular t/radius-xl)
-                   .boxShadow t/shadow-lg)
-      .child (m/Center
-              .child (m/Icon m.Icons/auto_stories_rounded
-                             .size 70.0
-                             .color t/primary)))
-     (ui/gap-v 28)
-     (t/mongol-label "ᠮᠣᠩᠭᠤᠯ ᠨᠣᠮ ᠤᠩᠰᠢᠭᠴᠢ" 
-                     :size 24.0 :weight m.FontWeight/bold)
-     (ui/gap-v 10)
-     (ui/text "Click 'Import' or press Cmd+O to add EPUB books"
-              {:size 16.0 :color (t/ink-muted)})
-     (ui/gap-v 20)
-     (m/ElevatedButton
-      .onPressed (fn [] (core/pick-and-import!))
-      .style (m/ElevatedButton.styleFrom
-              .backgroundColor t/primary
-              .foregroundColor m.Colors/white
-              .padding (m/EdgeInsets.symmetric .horizontal 28.0 .vertical 16.0)
-              .shape (m/RoundedRectangleBorder
-                      .borderRadius (m/BorderRadius.circular t/radius-m))
-              .elevation 2.0)
+  (m/LayoutBuilder
+   .builder
+   (fn [_ constraints]
+     (m/SingleChildScrollView
+      .padding (m/EdgeInsets.symmetric .vertical 40.0)
       .child
-      (m/Row
-       .mainAxisSize m.MainAxisSize/min
-       .children
-       [(m/Icon m.Icons/upload_file_rounded .color m.Colors/white .size 22.0)
-        (ui/gap-h 8)
-        (ui/text "Import Books" {:color m.Colors/white :size 16.0 :weight m.FontWeight/w500})]))
-     (when (:error state)
-       (m/Padding
-        .padding (m/EdgeInsets.only .top 24.0)
+      (m/ConstrainedBox
+       .constraints (m/BoxConstraints
+                     .minHeight (max 0.0 (- (.-maxHeight constraints) 80.0)))
+       .child
+       (m/Center
         .child
-        (m/Container
-         .padding (m/EdgeInsets.symmetric .horizontal 20.0 .vertical 14.0)
-         .constraints (m/BoxConstraints .maxWidth 480.0)
-         .decoration (m/BoxDecoration
-                      .color (t/fade t/danger 0.1)
-                      .borderRadius (m/BorderRadius.circular t/radius-m)
-                      .border (m/Border.all .color t/danger .width 1.0))
-         .child (ui/text (:error state)
-                         {:color t/danger :size 14.0}))))]))))
+        (m/Column
+         .mainAxisSize m.MainAxisSize/min
+         .children
+         (filterv some?
+                  [(m/Container
+                    .width 120.0
+                    .height 120.0
+                    .decoration (m/BoxDecoration
+                                 .gradient (m/LinearGradient
+                                            .colors [t/primary-soft
+                                                     (t/fade t/primary-soft 0.4)]
+                                            .begin m.Alignment/topLeft
+                                            .end m.Alignment/bottomRight)
+                                 .borderRadius (m/BorderRadius.circular t/radius-xl)
+                                 .boxShadow t/shadow-lg)
+                    .child (m/Center
+                            .child (m/Icon m.Icons/auto_stories_rounded
+                                          .size 60.0
+                                          .color t/primary)))
+                   (ui/gap-v 24)
+                   (t/mongol-label "ᠮᠣᠩᠭᠤᠯ ᠨᠣᠮ ᠤᠩᠰᠢᠭᠴᠢ"
+                                   :size 18.0 :weight m.FontWeight/bold)
+                   (ui/gap-v 8)
+                   (ui/text "Click ‘Import’ or press Cmd+O to add EPUB books"
+                            {:size 13.0 :color (t/ink-muted)})
+                   (ui/gap-v 18)
+                   (m/ElevatedButton
+                    .onPressed (fn [] (core/pick-and-import!))
+                    .style (m/ElevatedButton.styleFrom
+                            .backgroundColor t/primary
+                            .foregroundColor m.Colors/white
+                            .padding (m/EdgeInsets.symmetric
+                                      .horizontal 24.0 .vertical 14.0)
+                            .shape (m/RoundedRectangleBorder
+                                    .borderRadius (m/BorderRadius.circular t/radius-m))
+                            .elevation 2.0)
+                    .child
+                    (m/Row
+                     .mainAxisSize m.MainAxisSize/min
+                     .children
+                     [(m/Icon m.Icons/upload_file_rounded
+                              .color m.Colors/white .size 20.0)
+                      (ui/gap-h 8)
+                      (ui/text "Import Books"
+                               {:color m.Colors/white
+                                :size 13.0
+                                :weight m.FontWeight/w500})]))
+                   (when (:error state)
+                     (m/Padding
+                      .padding (m/EdgeInsets.only .top 20.0)
+                      .child
+                      (m/Container
+                       .padding (m/EdgeInsets.symmetric
+                                 .horizontal 20.0 .vertical 12.0)
+                       .constraints (m/BoxConstraints .maxWidth 440.0)
+                       .decoration (m/BoxDecoration
+                                    .color (t/fade t/danger 0.1)
+                                    .borderRadius (m/BorderRadius.circular t/radius-m)
+                                    .border (m/Border.all .color t/danger .width 1.0))
+                       .child (ui/text (:error state)
+                                       {:color t/danger :size 13.0}))))]))))))))
 
 ;; Global settings panel
 (defn- settings-panel [settings]
@@ -241,11 +260,11 @@
        .child
        (m/Row
         .children
-        [(t/mongol-label "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ" :size 20.0 :weight m.FontWeight/bold)
+        [(t/mongol-label "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ" :size 15.0 :weight m.FontWeight/bold)
          (m/Spacer)
          (ui/icon-btn m.Icons/close_rounded
                       (fn [] (store/set-ui! :settings-visible false))
-                      :size 22.0)]))
+                      :size 18.0)]))
       (ui/divider :margin (m/EdgeInsets.symmetric .horizontal 16.0))
       (m/Expanded
        .child
@@ -297,10 +316,10 @@
                                      .child (m/Icon m.Icons/filter_list_off .size 36.0 .color t/primary)))
                             (ui/gap-v 16)
                             (t/mongol-label "ᠰᠢᠯᠭᠠᠭᠰᠠᠨ ᠨᠣᠮ ᠦᠭᠡᠢ"
-                                            :size 18.0 :weight m.FontWeight/w600)
+                                            :size 15.0 :weight m.FontWeight/w600)
                             (ui/gap-v 6)
                             (t/mongol-label "ᠰᠢᠯᠭᠠᠬᠤ ᠰᠣᠩᠭᠣᠬᠤ"
-                                            :size 14.0 :color (t/ink-muted))]))
+                                            :size 12.0 :color (t/ink-muted))]))
                          (m/ListView
                           .scrollDirection m.Axis/horizontal
                           .padding (m/EdgeInsets.fromLTRB 24.0 20.0 32.0 20.0)
