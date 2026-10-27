@@ -103,18 +103,22 @@ class MglPageView extends StatelessWidget {
     final children = [
       for (final block in page.blocks) _block(block, vertical),
     ];
-    return Container(
-      color: colors.background,
-      padding: config.padding,
-      child: vertical
-          ? Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: children,
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: children,
-            ),
+    // Pagination measures at layout font size; disable system text scaling so
+    // painted extents match the paginator.
+    return MediaQuery.withNoTextScaling(
+      child: Container(
+        color: colors.background,
+        padding: config.padding,
+        child: vertical
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: children,
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
+      ),
     );
   }
 

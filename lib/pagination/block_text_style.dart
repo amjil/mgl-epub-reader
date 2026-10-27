@@ -28,6 +28,7 @@ TextStyle blockTextStyle(
   if (span?.style.fontSize != null) size = span!.style.fontSize!;
   final underline = (span?.style.underline ?? false) || extraUnderline;
   return TextStyle(
+    inherit: false,
     fontSize: size,
     height: config.lineHeight,
     fontFamily: span?.style.fontFamily ?? config.fontFamily ?? 'OyunQaganTig',

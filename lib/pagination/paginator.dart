@@ -200,7 +200,9 @@ _Measured _measure(_Item item, ReaderLayoutConfig config, double remaining) {
 
 double _extentOf(MglBlock block, ReaderLayoutConfig config) {
   final vertical = config.writingMode == WritingMode.vertical;
-  if (block.type == MglBlockType.horizontalRule) return 16;
+  if (block.type == MglBlockType.horizontalRule) {
+    return vertical ? 25 : 16;
+  }
   if (block.type == MglBlockType.image) {
     final w = block.width ?? (vertical ? 80 : config.contentSize.width);
     final h = block.height ?? (vertical ? config.contentSize.height : 180);
