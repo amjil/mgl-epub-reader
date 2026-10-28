@@ -277,28 +277,31 @@
    .left 0.0 .top 0.0 .right 0.0 .bottom 0.0
    .child
    (m/Stack
-    .alignment m.Alignment/center
     .children
     [(m/ModalBarrier
       .color (t/fade (t/ink) 0.42)
       .dismissible true
       .onDismiss (fn [] (close-settings!) nil))
-     (m/Material
-      .color m.Colors/transparent
-      .child
-      (m/Container
-       .width 520.0
-       .constraints (m/BoxConstraints .maxHeight 560.0)
-       .decoration (m/BoxDecoration
-                    .color (t/surface)
-                    .borderRadius (m/BorderRadius.circular t/radius-l)
-                    .border (m/Border.all .color (t/outline) .width 1.0)
-                    .boxShadow t/shadow-lg)
-       .clipBehavior m.Clip/antiAlias
-       .child
-       (m/SafeArea
-        .child
-        (settings-dialog-body settings))))])))
+     (m/LayoutBuilder
+      .builder
+      (fn [_ constraints]
+        (let [max-w (max 280.0 (- (.-maxWidth constraints) 48.0))
+              max-h (max 200.0 (- (.-maxHeight constraints) 48.0))]
+          (m/Center
+           .child
+           (m/Material
+            .color m.Colors/transparent
+            .child
+            (m/Container
+             .width (min 520.0 max-w)
+             .constraints (m/BoxConstraints .maxHeight (min 560.0 max-h))
+             .decoration (m/BoxDecoration
+                          .color (t/surface)
+                          .borderRadius (m/BorderRadius.circular t/radius-l)
+                          .border (m/Border.all .color (t/outline) .width 1.0)
+                          .boxShadow t/shadow-lg)
+             .clipBehavior m.Clip/antiAlias
+             .child (settings-dialog-body settings)))))))])))
 
 (defn screen []
   (f/widget
