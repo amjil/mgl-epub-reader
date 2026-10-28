@@ -21,6 +21,29 @@
                    :max-lines max-lines
                    :align mgl.MongolTextAlign/top)))
 
+(defn reader-font []
+  (or (:font-family (:settings @store/app-state)) t/font))
+
+;; Vertical labels that must match the page. inherit false so a list tile's
+;; theme style cannot replace the family with the platform font.
+(defn reader-text
+  ([s] (reader-text s {}))
+  ([s {:keys [size color weight max-lines]
+       :or {size 16.0}}]
+   (mgl/MongolText
+    (or s "")
+    .maxLines (when max-lines (int max-lines))
+    .overflow (when max-lines m.TextOverflow/ellipsis)
+    .textAlign mgl.MongolTextAlign/top
+    .style (m/TextStyle
+            .inherit false
+            .fontFamily (reader-font)
+            .fontSize (double size)
+            .height 1.0
+            .leadingDistribution m.TextLeadingDistribution/even
+            .fontWeight (or weight m.FontWeight/normal)
+            .color (or color (t/ink))))))
+
 ;; Improved button style
 (defn pill
   [{:keys [label active? on-tap]}]
