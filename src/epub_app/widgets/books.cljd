@@ -23,6 +23,13 @@
                             (> (or (.-progress b) 0.0) 0.0)))
                       books))))
 
+(defn matches-query? [book query]
+  (let [q (.toLowerCase (or query ""))
+        title (.toLowerCase (or (.-title book) ""))
+        author (.toLowerCase (or (.-author book) ""))]
+    (and (seq q)
+         (or (.contains title q) (.contains author q)))))
+
 (defn filtered-books [state]
   (let [books (:library state)
         f (:library-filter state)
@@ -43,13 +50,6 @@
           d (.-day at)
           pad (fn [n] (if (< n 10) (str "0" n) (str n)))]
       (str (.-year at) "-" (pad m) "-" (pad d)))))
-
-(defn matches-query? [book query]
-  (let [q (.toLowerCase (or query ""))
-        title (.toLowerCase (or (.-title book) ""))
-        author (.toLowerCase (or (.-author book) ""))]
-    (and (seq q)
-         (or (.contains title q) (.contains author q)))))
 
 ;; Delete confirmation dialog
 (defn confirm-delete! [ctx book]
