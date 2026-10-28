@@ -4,30 +4,17 @@
             [cljd.flutter :as f]
             [epub-app.reader-settings :as rs]
             [epub-app.state.store :as store]
-            [epub-app.theme :as t]
-            [epub-app.widgets.about :as about]
-            [epub-app.widgets.ui :as ui]))
+            [epub-app.theme :as t]))
 
 (defn screen []
   (f/widget
    :watch [state store/app-state]
-   :context ctx
    (m/Scaffold
     .backgroundColor (t/bg)
     .body
     (m/SafeArea
      .child
-     (m/Row
-      .crossAxisAlignment m.CrossAxisAlignment/stretch
-      .children
-      [(m/IconButton
-        .tooltip "About"
-        .onPressed (fn [] (about/show-about! ctx) nil)
-        .icon (m/Icon m.Icons/info_outline_rounded .color (t/ink-muted)))
-       (ui/gap-h 4)
-       (m/Expanded
-        .child
-        (rs/horizontal-list (:settings state)
-                            :group-config {:card-radius 16.0
-                                           :item-radius 12.0
-                                           :show-shadow true}))])))))
+     (rs/horizontal-list (:settings state)
+                         :group-config {:card-radius 16.0
+                                        :item-radius 12.0
+                                        :show-shadow true})))))

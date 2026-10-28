@@ -10,7 +10,6 @@
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]
-            [epub-app.widgets.about :as about]
             [epub-app.widgets.books :as books]
             [epub-app.widgets.ui :as ui]))
 
@@ -216,18 +215,7 @@
                           :on-tap (fn []
                                    (store/set-ui! :library-filter-visible false)
                                    (store/toggle-ui! :settings-visible)
-                                   nil)})
-        (ui/gap-v 4)
-        (m/Builder
-         .builder
-         (fn [ctx]
-           (rail-action-btn {:bg (t/surface-2)
-                             :icon m.Icons/info_outline_rounded
-                             :icon-color (t/ink-muted)
-                             :label "ᠲᠠᠨᠢᠯᠴᠠᠭᠤᠯᠬᠤ"
-                             :label-color (t/ink-muted)
-                             :shadow? false
-                             :on-tap (fn [] (about/show-about! ctx) nil)})))]))])))
+                                   nil)})]))])))
 
 ;; Empty library state — scrollable so it never overflows on short windows.
 ;; LayoutBuilder + SingleChildScrollView + ConstrainedBox(minHeight) keeps the
@@ -358,7 +346,7 @@
                         (.clear ctrl)
                         (store/set-library-search! "")
                         nil)
-           .child (ui/text "Clear" {:size 13.0 :color t/primary})))]))))]))
+           .child (ui/text "Clear" {:size 13.0 :color t/primary})))])))])))
 
 (defn- library-filter-modal []
   (m/Positioned
