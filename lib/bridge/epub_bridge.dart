@@ -143,6 +143,15 @@ class EpubBridge {
   Future<void> setFinished(String id, bool finished) =>
       books.setFinished(id, finished);
 
+  Future<List<Shelf>> listShelves() => books.listShelves();
+
+  Future<Shelf> createShelf(String name) => books.createShelf(name);
+
+  Future<void> deleteShelf(String id) => books.deleteShelf(id);
+
+  Future<void> setBookShelf(String bookId, String? shelfId) =>
+      books.setCollection(bookId, shelfId);
+
   Future<void> removeBook(String id) async {
     if (engine.book?.id == id) {
       engine.close();

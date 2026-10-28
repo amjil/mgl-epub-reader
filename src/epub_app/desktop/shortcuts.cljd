@@ -21,6 +21,10 @@
     (m/SingleActivator logical-key .meta true .shift true)
     (m/SingleActivator logical-key .control true .shift true)))
 
+(defn shift-key
+  [^s/LogicalKeyboardKey logical-key]
+  (m/SingleActivator logical-key .shift true))
+
 (defn raw-key
   [^s/LogicalKeyboardKey logical-key]
   (m/SingleActivator logical-key))

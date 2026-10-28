@@ -18,6 +18,7 @@
     (await (.initialize b))
     (reset! !bridge b)
     (store/set-library! (await (.listBooks b)))
+    (store/set-shelves! (await (.listShelves b)))
     b))
 
 (defn dispose! []
@@ -28,8 +29,12 @@
 (defn- bridge []
   (or @!bridge (throw (Exception. "EpubBridge not initialized"))))
 
+(defn refresh-shelves! []
+  (store/set-shelves! (await (.listShelves (bridge)))))
+
 (defn refresh-library! []
-  (store/set-library! (await (.listBooks (bridge)))))
+  (store/set-library! (await (.listBooks (bridge))))
+  (await (refresh-shelves!)))
 
 (defn- epub-type-group []
   (fs/XTypeGroup.
@@ -636,6 +641,27 @@
   (await (.removeAnnotation (bridge) id))
   (when-let [lb (:library-book @store/app-state)]
     (store/set-annotations! (await (.listAnnotations (bridge) (.-id lb))))))
+
+(defn create-shelf! [name]
+  (let [n (.trim (or name ""))]
+    (when (seq n)
+      (await (.createShelf (bridge) n))
+      (await (refresh-shelves!))))
+  nil)
+
+(defn delete-shelf! [id]
+  (when (seq (or id ""))
+    (await (.deleteShelf (bridge) id))
+    (when (= id (:library-filter @store/app-state))
+      (store/set-library-filter! :all))
+    (await (refresh-library!)))
+  nil)
+
+(defn set-book-shelf! [book-id shelf-id]
+  (when book-id
+    (await (.setBookShelf (bridge) book-id shelf-id))
+    (await (refresh-library!)))
+  nil)
 
 (defn toggle-favorite! [id favorite]
   (await (.setFavorite (bridge) id favorite))

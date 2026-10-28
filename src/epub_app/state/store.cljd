@@ -35,6 +35,7 @@
   (atom
    {:status :idle
     :library []
+    :shelves []
     :library-filter :all
     :library-search-query ""
     :mobile-tab :library
@@ -176,6 +177,9 @@
 
 (defn set-library! [books]
   (swap! app-state assoc :library (vec (or books [])) :error nil))
+
+(defn set-shelves! [shelves]
+  (swap! app-state assoc :shelves (vec (or shelves []))))
 
 (defn set-library-filter! [f]
   (swap! app-state assoc :library-filter f))

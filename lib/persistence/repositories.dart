@@ -12,6 +12,13 @@ import '../model/book.dart';
 import '../model/position.dart';
 import 'database.dart';
 
+class Shelf {
+  const Shelf({required this.id, required this.name});
+
+  final String id;
+  final String name;
+}
+
 class LibraryBook {
   const LibraryBook({
     required this.id,
@@ -25,6 +32,7 @@ class LibraryBook {
     this.lastOpenedAt,
     this.favorite = false,
     this.finished = false,
+    this.collectionId,
   });
 
   final String id;
@@ -38,12 +46,14 @@ class LibraryBook {
   final DateTime? lastOpenedAt;
   final bool favorite;
   final bool finished;
+  final String? collectionId;
 }
 
 class BookRepository {
   BookRepository(this.db);
 
   final ReaderDatabase db;
+  final _uuid = const Uuid();
 
   Future<List<LibraryBook>> list() async {
     final rows = await db.select(db.storedBooks).get();
@@ -146,6 +156,7 @@ class BookRepository {
       lastOpenedAt: book.lastOpenedAt,
       favorite: book.favorite,
       finished: book.finished,
+      collectionId: book.collectionId,
     );
   }
 
@@ -227,6 +238,36 @@ class BookRepository {
     );
   }
 
+  Future<List<Shelf>> listShelves() async {
+    final rows = await db.select(db.collectionRows).get();
+    rows.sort((a, b) => a.name.compareTo(b.name));
+    return [for (final row in rows) Shelf(id: row.id, name: row.name)];
+  }
+
+  Future<Shelf> createShelf(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      throw ArgumentError('Shelf name is empty');
+    }
+    final id = _uuid.v4();
+    await db.into(db.collectionRows).insert(
+          CollectionRowsCompanion(id: Value(id), name: Value(trimmed)),
+        );
+    return Shelf(id: id, name: trimmed);
+  }
+
+  Future<void> deleteShelf(String id) async {
+    await (db.update(db.storedBooks)..where((t) => t.collectionId.equals(id)))
+        .write(const StoredBooksCompanion(collectionId: Value<String?>(null)));
+    await (db.delete(db.collectionRows)..where((t) => t.id.equals(id))).go();
+  }
+
+  Future<void> setCollection(String bookId, String? collectionId) async {
+    await (db.update(db.storedBooks)..where((t) => t.id.equals(bookId))).write(
+      StoredBooksCompanion(collectionId: Value(collectionId)),
+    );
+  }
+
   Future<void> remove(String id) async {
     final row = await byId(id);
     if (row != null) {
@@ -263,6 +304,7 @@ class BookRepository {
       lastOpenedAt: row.lastOpenedAt,
       favorite: row.favorite,
       finished: row.finished,
+      collectionId: row.collectionId,
     );
   }
 
