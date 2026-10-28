@@ -4,7 +4,8 @@
             ["package:flutter/material.dart" :as m]
             [cljd.flutter :as f]
             [components.setting :as setting]
-            [epub-app.state.store :as store]))
+            [epub-app.state.store :as store]
+            [epub-app.widgets.about :as about]))
 
 (def ^:private writing-modes
   [[:vertical "Vertical"]
@@ -185,6 +186,19 @@
      nil)
    .child child))
 
+(defn- about-section [group-config]
+  (m/Builder
+   .builder
+   (fn [ctx]
+     (apply setting/settings-section
+            "About"
+            [{:title "About"
+              :subtitle "This device"
+              :leading m.Icons/info_outline_rounded
+              :show-arrow? true
+              :on-tap (fn [] (about/show-about! ctx) nil)}]
+            (when group-config [:custom-config group-config])))))
+
 (defn horizontal-list
   [settings & {:keys [group-config on-ime-mode-changed wheel-horizontal?]}]
   (let [content (fn [ctrl]
@@ -193,9 +207,10 @@
                    .scrollDirection m.Axis/horizontal
                    .physics (m/ClampingScrollPhysics.)
                    .padding (m/EdgeInsets.symmetric .vertical 8.0)
-                   .children (vec (sections settings
-                                            :group-config group-config
-                                            :on-ime-mode-changed on-ime-mode-changed))))]
+                   .children (conj (vec (sections settings
+                                                  :group-config group-config
+                                                  :on-ime-mode-changed on-ime-mode-changed))
+                                   (about-section group-config))))]
     (if wheel-horizontal?
       (f/widget
        :managed [ctrl (m/ScrollController.)]
