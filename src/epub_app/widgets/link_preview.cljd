@@ -1,0 +1,99 @@
+(ns epub-app.widgets.link-preview
+  "Small card for footnote and fragment targets."
+  (:require ["package:flutter/material.dart" :as m]
+            [epub-app.services.epub-core :as core]
+            [epub-app.state.store :as store]
+            [epub-app.theme :as t]
+            [epub-app.widgets.ui :as ui]))
+
+(def ^:private card-max-width 420.0)
+(def ^:private card-max-height 360.0)
+
+(defn- dismiss! []
+  (store/clear-link-preview!)
+  nil)
+
+(defn- title-rail [preview]
+  (let [title (if (= (:kind preview) "note") "ᠲᠠᠢᠯᠪᠤᠷᠢ" "ᠬᠣᠯᠪᠣᠭᠠᠰᠤ")]
+    (m/Container
+     .width 44.0
+     .decoration (m/BoxDecoration
+                  .border (m/Border
+                           .right (m/BorderSide .color (t/outline) .width 1.0)))
+     .child
+     (m/Column
+      .children
+      (filterv some?
+               [(ui/icon-btn m.Icons/close_rounded
+                             dismiss!
+                             :size 18.0)
+                (when (:chapter-id preview)
+                  (ui/icon-btn m.Icons/menu_book_outlined
+                               (fn [] (core/follow-link-preview!) nil)
+                               :tooltip "Open in book"
+                               :size 18.0))
+                (m/Expanded
+                 .child
+                 (m/Center
+                  .child
+                  (t/mongol-label title
+                                  :size 15.0
+                                  :weight m.FontWeight/bold)))])))))
+
+(defn- preview-body [text vertical?]
+  (if vertical?
+    (m/ListView
+     .scrollDirection m.Axis/horizontal
+     .padding (m/EdgeInsets.symmetric .horizontal 16.0 .vertical 12.0)
+     .children [(ui/text text {:size 16.0})])
+    (m/ListView
+     .padding (m/EdgeInsets.all 16.0)
+     .children
+     [(m/Text text
+              .style (m/TextStyle
+                      .fontSize 16.0
+                      .height 1.45
+                      .color (t/ink)))])))
+
+(defn- card [preview vertical?]
+  (m/Row
+   .crossAxisAlignment m.CrossAxisAlignment/stretch
+   .children
+   [(title-rail preview)
+    (m/Expanded
+     .child (preview-body (or (:text preview) "") vertical?))]))
+
+(defn layer
+  "Dimmed card over the reader. Nothing when no link is open."
+  [preview vertical?]
+  (if preview
+    (m/Positioned
+     .left 0.0 .top 0.0 .right 0.0 .bottom 0.0
+     .child
+     (m/Stack
+      .children
+      [(m/ModalBarrier
+        .color (t/fade (t/ink) 0.42)
+        .dismissible true
+        .onDismiss dismiss!)
+       (m/LayoutBuilder
+        .builder
+        (fn [_ constraints]
+          (let [max-w (max 280.0 (- (.-maxWidth constraints) 48.0))
+                max-h (max 200.0 (- (.-maxHeight constraints) 48.0))]
+            (m/Center
+             .child
+             (m/Material
+              .color m.Colors/transparent
+              .child
+              (m/Container
+               .width (min card-max-width max-w)
+               .height (min card-max-height max-h)
+               .decoration (m/BoxDecoration
+                            .color (t/surface)
+                            .borderRadius (m/BorderRadius.circular t/radius-l)
+                            .border (m/Border.all .color (t/outline) .width 1.0)
+                            .boxShadow t/shadow-lg)
+               .clipBehavior m.Clip/antiAlias
+               .child (card preview vertical?)))))))]))
+    (m/SizedBox.shrink)))

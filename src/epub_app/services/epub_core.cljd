@@ -282,19 +282,74 @@
       (store/set-ui! :search-visible false)
       (store/hide-chrome!))
     (if-let [frag (href-fragment href)]
-      (await (go-to-position!
-              (epub/ReaderPosition.
-               .chapterId (.-id ch)
-               .blockId frag
-               .offset 0)))
+      (let [mapped (await (.anchorBlockId (bridge) (.-id ch) frag))
+            block-id (or mapped frag)]
+        (await (go-to-position!
+                (epub/ReaderPosition.
+                 .chapterId (.-id ch)
+                 .blockId block-id
+                 .offset 0))))
       (await (open-chapter! (.-id ch) :first)))))
 
-(defn open-link! [href]
-  (when (and href
-             (not (.startsWith href "http://"))
-             (not (.startsWith href "https://"))
-             (not (.startsWith href "mailto:")))
-    (open-toc-href! href)))
+(defn- link-preview-text [resolved]
+  (let [raw (or (.-text resolved) "")]
+    (if (pos? (count raw))
+      raw
+      (if (= (.-kind resolved) "note")
+        "This note has no text."
+        "This link target was not found."))))
+
+(defn open-link! [href note?]
+  (let [ch (:chapter @store/app-state)]
+    (when (and href ch)
+      (store/clear-error!)
+      (try
+        (let [resolved (await (.resolveLink (bridge)
+                                            href
+                                            .fromChapterId (.-id ch)
+                                            .note (if note? true false)))
+              kind (.-kind resolved)]
+          (cond
+            (= kind "external")
+            (when-not (await (.openExternalUrl (bridge) (.-href resolved)))
+              (store/set-notice! "Could not open link"))
+
+            (= kind "jump")
+            (do
+              (store/clear-link-preview!)
+              (store/hide-panels!)
+              (when-let [cid (.-chapterId resolved)]
+                (if-let [bid (.-blockId resolved)]
+                  (await (go-to-position!
+                          (epub/ReaderPosition.
+                           .chapterId cid
+                           .blockId bid
+                           .offset 0)))
+                  (await (open-chapter! cid :first)))))
+
+            :else
+            (store/set-link-preview!
+             {:kind kind
+              :text (link-preview-text resolved)
+              :chapter-id (.-chapterId resolved)
+              :block-id (.-blockId resolved)})))
+        (catch Exception e
+          (store/set-notice! "Could not open link")))))
+  nil)
+
+(defn follow-link-preview! []
+  (let [preview (:link-preview @store/app-state)]
+    (store/clear-link-preview!)
+    (store/hide-panels!)
+    (when-let [cid (:chapter-id preview)]
+      (if-let [bid (:block-id preview)]
+        (go-to-position!
+         (epub/ReaderPosition.
+          .chapterId cid
+          .blockId bid
+          .offset 0))
+        (open-chapter! cid :first))))
+  nil)
 
 (defn add-bookmark! []
   (let [{:keys [library-book position chapter]} @store/app-state]

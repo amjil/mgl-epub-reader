@@ -52,6 +52,7 @@
          :notes-visible false
          :note-visible false}
     :toc-pane-width 240.0
+    :link-preview nil
     :error nil}))
 
 (defn- persist-settings! [settings]
@@ -114,6 +115,9 @@
   (swap! app-state (fn [s]
                      (assoc s :error msg :status (if msg :error (:status s))))))
 
+(defn set-notice! [msg]
+  (swap! app-state assoc :error msg))
+
 (defn clear-error! []
   (swap! app-state assoc :error nil))
 
@@ -137,6 +141,7 @@
                           :highlight nil
                           :progress (or (some-> library-book .-progress) 0.0)
                           :viewport-key nil
+                          :link-preview nil
                           :status :book-loaded)))))
 
 (defn set-landing! [landing]
@@ -270,6 +275,12 @@
 (defn set-toc-pane-width! [w]
   (swap! app-state assoc :toc-pane-width (double w)))
 
+(defn set-link-preview! [preview]
+  (swap! app-state assoc :link-preview preview))
+
+(defn clear-link-preview! []
+  (swap! app-state assoc :link-preview nil))
+
 (defn hide-chrome! []
   (swap! app-state assoc :ui {:menu-visible false
                               :toc-visible false
@@ -300,6 +311,7 @@
                           :highlight nil
                           :progress 0.0
                           :viewport-key nil
+                          :link-preview nil
                           :status :idle))))
   (hide-chrome!))
 

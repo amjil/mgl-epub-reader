@@ -10,6 +10,7 @@ export 'epub/epub_source.dart';
 export 'integration/integration.dart';
 export 'model/book.dart';
 export 'model/document.dart';
+export 'model/link.dart';
 export 'model/position.dart';
 export 'pagination/layout_cache.dart';
 export 'pagination/page.dart';

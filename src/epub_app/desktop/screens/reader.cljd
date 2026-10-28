@@ -9,6 +9,7 @@
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]
+            [epub-app.widgets.link-preview :as link-preview]
             [epub-app.widgets.page :as page]
             [epub-app.widgets.ui :as ui]))
 
@@ -23,6 +24,7 @@
 (defn- on-escape! [state]
   (let [ui-state (:ui state)]
     (cond
+      (:link-preview state) (store/clear-link-preview!)
       (:note-visible ui-state) (core/clear-selection!)
       (:selection state) (core/clear-selection!)
       (or (:toc-visible ui-state)
@@ -198,4 +200,7 @@
             [(chrome/left-rail (:book state) ui-state)
              (m/Expanded .child (reading-area state))
              (chrome/right-rail state)])
-           (panels/overlay state)]))))))))
+           (panels/overlay state)
+           (link-preview/layer
+            (:link-preview state)
+            (= :vertical (:writing-mode (:settings state))))]))))))))

@@ -37,11 +37,30 @@ class MglTextSpan {
     required this.text,
     this.style = MglTextStyle.empty,
     this.href,
+    this.note = false,
   });
 
   final String text;
   final MglTextStyle style;
   final String? href;
+
+  /// Footnote / endnote reference (epub:type, role, or class).
+  final bool note;
+}
+
+/// Fragment id collected while converting XHTML, including ids that sit on
+/// wrappers or hidden notes rather than on a visible block.
+class DocAnchor {
+  const DocAnchor({
+    required this.blockId,
+    required this.text,
+    required this.length,
+  });
+
+  /// Leaf block to scroll to. Empty when the target is not in the page flow.
+  final String blockId;
+  final String text;
+  final int length;
 }
 
 class MglBlockStyle {
@@ -221,10 +240,12 @@ class MglDocument {
   const MglDocument({
     required this.id,
     required this.blocks,
+    this.anchors = const {},
   });
 
   final String id;
   final List<MglBlock> blocks;
+  final Map<String, DocAnchor> anchors;
 
   MglBlock? blockById(String id) {
     MglBlock? walk(List<MglBlock> items) {

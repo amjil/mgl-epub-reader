@@ -1,10 +1,13 @@
 import 'dart:io';
 
+import 'package:url_launcher/url_launcher.dart';
+
 import '../annotation/annotation.dart';
 import '../engine/epub_engine.dart';
 import '../epub/epub_source.dart';
 import '../integration/integration.dart';
 import '../model/book.dart';
+import '../model/link.dart';
 import '../model/position.dart';
 import '../pagination/page.dart';
 import '../persistence/database.dart';
@@ -134,6 +137,38 @@ class EpubBridge {
   }
 
   EpubChapter? chapterByHref(String href) => engine.chapterByHref(href);
+
+  Future<String?> anchorBlockId(String chapterId, String fragment) =>
+      engine.anchorBlockId(chapterId, fragment);
+
+  Future<LinkResolution> resolveLink(
+    String href, {
+    required String fromChapterId,
+    bool note = false,
+  }) {
+    return engine.resolveLink(
+      href,
+      fromChapterId: fromChapterId,
+      note: note,
+    );
+  }
+
+  Future<bool> openExternalUrl(String href) async {
+    final uri = Uri.tryParse(href.trim());
+    if (uri == null || !uri.hasScheme) return false;
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme != 'http' &&
+        scheme != 'https' &&
+        scheme != 'mailto' &&
+        scheme != 'tel') {
+      return false;
+    }
+    try {
+      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      return false;
+    }
+  }
 
   NoteFromSelection noteFromSelection(
     ReaderSelection selection, [
