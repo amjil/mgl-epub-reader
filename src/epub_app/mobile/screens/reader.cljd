@@ -18,7 +18,7 @@
    .shape (m/RoundedRectangleBorder
            .borderRadius (m/BorderRadius.circular t/radius-s))
    .tileColor (t/surface)
-   .title (ui/text (.-title item) {:size 16.0 :weight m.FontWeight/w500})
+   .title (ui/reader-text (.-title item) {:size 16.0 :weight m.FontWeight/w500})
    .onTap (fn [] (core/open-toc-href! (.-href item)))))
 
 ;; TOC list

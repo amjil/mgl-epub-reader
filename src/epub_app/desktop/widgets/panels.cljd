@@ -26,7 +26,7 @@
 
 (defn- hit-tile [idx hit]
   (mgl/MongolListTile
-   .title (ui/text (.-snippet hit) {:size 13.0 :max-lines 2})
+   .title (ui/reader-text (.-snippet hit) {:size 13.0 :max-lines 2})
    .onTap (fn [] (core/go-to-search-hit! hit idx) nil)))
 
 (defn- search-body [state]
@@ -124,7 +124,7 @@
    .builder
    (fn [ctx]
      (mgl/MongolListTile
-      .title (ui/text (or (.-title bm) "Bookmark") {:size 13.0 :max-lines 1})
+      .title (ui/reader-text (or (.-title bm) "Bookmark") {:size 13.0 :max-lines 1})
       .onTap (fn []
                (store/set-ui! :bookmarks-visible false)
                (core/go-to-position! (.-position bm))
@@ -152,7 +152,7 @@
 
 (defn- note-tile [ann]
   (mgl/MongolListTile
-   .title (ui/text (or (.-note ann) "Note") {:size 13.0 :max-lines 2})
+   .title (ui/reader-text (or (.-note ann) "Note") {:size 13.0 :max-lines 2})
    .onTap (fn []
             (store/set-ui! :notes-visible false)
             (core/go-to-position! (.-start ann))
