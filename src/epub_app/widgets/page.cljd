@@ -46,7 +46,7 @@
      .selection (:selection state)
      .highlight (:highlight state)
      .onBlockLongPress (fn [block] (core/select-block! block))
-     .onLinkTap (fn [href] (core/open-link! href)))))
+     .onLinkTap (fn [href note?] (core/open-link! href note?) nil))))
 
 (defn- on-page-changed [i]
   (when (not= i (:page @store/app-state))

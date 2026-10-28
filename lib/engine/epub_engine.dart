@@ -5,6 +5,7 @@ import '../epub/epub_path.dart';
 import '../epub/epub_source.dart';
 import '../model/book.dart';
 import '../model/document.dart';
+import '../model/link.dart';
 import '../model/position.dart';
 import '../pagination/layout_cache.dart';
 import '../pagination/page.dart';
@@ -270,6 +271,124 @@ class MglEpubEngineImpl implements MglEpubEngine {
   }
 
   EpubChapter? chapterByHref(String href) => _require().book.chapterByHref(href);
+
+  Future<String?> anchorBlockId(String chapterId, String fragment) async {
+    final doc = await documentFor(chapterId);
+    final id = _decodeFrag(fragment);
+    final anchor = doc.anchors[id];
+    if (anchor != null && anchor.blockId.isNotEmpty) return anchor.blockId;
+    if (doc.blockById(id) != null) return id;
+    return null;
+  }
+
+  /// Classify a body hyperlink. [fromChapterId] is the chapter that contains it.
+  Future<LinkResolution> resolveLink(
+    String href, {
+    required String fromChapterId,
+    bool note = false,
+  }) async {
+    final raw = href.trim();
+    if (raw.isEmpty) {
+      return const LinkResolution(kind: 'missing', href: '');
+    }
+    final lower = raw.toLowerCase();
+    if (lower.startsWith('javascript:') || lower.startsWith('data:')) {
+      return LinkResolution(
+        kind: 'missing',
+        href: raw,
+        text: "This link can't be opened.",
+      );
+    }
+    if (_isExternalLink(raw)) {
+      return LinkResolution(kind: 'external', href: raw);
+    }
+
+    final book = _require().book;
+    final from = book.chapterById(fromChapterId);
+    final opf = _require().package.opfPath;
+    final base = from == null ? opf : resolveEpubHref(opf, from.href);
+    final frag = fragmentOf(raw);
+    final decoded = frag == null || frag.isEmpty ? null : _decodeFrag(frag);
+    final pathPart = stripFragment(raw);
+    // Body hrefs are already resolved against the chapter. Resolve again only
+    // when the path is still relative (for example a TOC-style ../ link).
+    final chapter = (pathPart.isNotEmpty ? book.chapterByHref(pathPart) : null) ??
+        _chapterForPath(resolveEpubHref(base, raw), from);
+    if (chapter == null) {
+      return LinkResolution(kind: 'missing', href: raw);
+    }
+
+    final doc = await _documentFor(chapter);
+    DocAnchor? anchor;
+    if (decoded != null) {
+      anchor = doc.anchors[decoded];
+      if (anchor == null) {
+        final block = doc.blockById(decoded);
+        if (block != null) {
+          final text = block.plainText.trim();
+          anchor = DocAnchor(
+            blockId: block.id,
+            text: text.length > 1600 ? '${text.substring(0, 1600)}…' : text,
+            length: text.length,
+          );
+        }
+      }
+    }
+
+    if (decoded != null && anchor == null) {
+      return LinkResolution(
+        kind: 'missing',
+        href: raw,
+        chapterId: chapter.id,
+      );
+    }
+
+    final blockId = anchor == null || anchor.blockId.isEmpty ? null : anchor.blockId;
+    final hidden = anchor != null && anchor.blockId.isEmpty;
+    final short = anchor != null && anchor.length <= 1200;
+    if (note || hidden || (decoded != null && short)) {
+      return LinkResolution(
+        kind: 'note',
+        href: raw,
+        text: anchor?.text ?? '',
+        chapterId: chapter.id,
+        blockId: blockId,
+      );
+    }
+    return LinkResolution(
+      kind: 'jump',
+      href: raw,
+      chapterId: chapter.id,
+      blockId: blockId,
+    );
+  }
+
+  bool _isExternalLink(String href) {
+    final lower = href.trim().toLowerCase();
+    return lower.startsWith('http://') ||
+        lower.startsWith('https://') ||
+        lower.startsWith('mailto:') ||
+        lower.startsWith('tel:');
+  }
+
+  String _decodeFrag(String frag) {
+    try {
+      return Uri.decodeComponent(frag);
+    } catch (_) {
+      return frag;
+    }
+  }
+
+  EpubChapter? _chapterForPath(String path, EpubChapter? from) {
+    final book = _require().book;
+    if (path.isEmpty) return from;
+    final direct = book.chapterByHref(path);
+    if (direct != null) return direct;
+    if (from == null) return null;
+    final abs = resolveEpubHref(_require().package.opfPath, from.href);
+    if (hrefsMatch(abs, path) || hrefsMatch(from.href, path)) return from;
+    return null;
+  }
 
   double progressFor({
     required String chapterId,

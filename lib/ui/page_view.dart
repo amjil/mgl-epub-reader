@@ -95,7 +95,7 @@ class MglPageView extends StatelessWidget {
   final ReaderSelection? selection;
   final List<Annotation> annotations;
   final void Function(MglBlock block)? onBlockLongPress;
-  final void Function(String href)? onLinkTap;
+  final void Function(String href, bool note)? onLinkTap;
 
   @override
   Widget build(BuildContext context) {
@@ -159,11 +159,19 @@ class MglPageView extends StatelessWidget {
     }
     final onPress = onBlockLongPress;
     final href = _firstHref(block);
+    final linkTap = onLinkTap;
     Widget wrapped = child;
-    if (onPress != null || (href != null && onLinkTap != null)) {
+    if (onPress != null || (href != null && linkTap != null)) {
       wrapped = GestureDetector(
         onLongPress: onPress == null ? null : () => onPress(block),
-        onTap: href == null || onLinkTap == null ? null : () => onLinkTap!(href),
+        onTap: href == null || linkTap == null
+            ? null
+            : () {
+                final target = href;
+                final tap = linkTap;
+                if (target == null || tap == null) return;
+                tap(target, _linkNote(block, target));
+              },
         behavior: HitTestBehavior.translucent,
         child: child,
       );
@@ -175,6 +183,13 @@ class MglPageView extends StatelessWidget {
       button: href != null,
       child: wrapped,
     );
+  }
+
+  bool _linkNote(MglBlock block, String href) {
+    for (final span in block.spans) {
+      if (span.href == href && span.note) return true;
+    }
+    return false;
   }
 
   String? _firstHref(MglBlock block) {

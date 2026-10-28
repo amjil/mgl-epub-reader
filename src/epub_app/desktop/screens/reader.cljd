@@ -10,6 +10,7 @@
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]
+            [epub-app.widgets.link-preview :as link-preview]
             [epub-app.widgets.page :as page]
             [epub-app.widgets.ui :as ui]))
 
@@ -24,6 +25,7 @@
 (defn- on-escape! [state]
   (let [ui-state (:ui state)]
     (cond
+      (:link-preview state) (store/clear-link-preview!)
       (:note-visible ui-state) (core/clear-selection!)
       (:selection state) (core/clear-selection!)
       (or (:toc-visible ui-state)
@@ -216,11 +218,17 @@
         .body
         (m/SafeArea
          .child
-         (m/Row
-          .crossAxisAlignment m.CrossAxisAlignment/stretch
+         (m/Stack
+          .fit m.StackFit/expand
           .children
-          (filterv some?
-                   [(chrome/left-rail (:book state) ui-state)
-                    (m/Expanded .child (toc-and-page state))
-                    (panels/docked state)
-                    (chrome/right-rail state)])))))))))
+          [(m/Row
+            .crossAxisAlignment m.CrossAxisAlignment/stretch
+            .children
+            (filterv some?
+                     [(chrome/left-rail (:book state) ui-state)
+                      (m/Expanded .child (toc-and-page state))
+                      (panels/docked state)
+                      (chrome/right-rail state)]))
+           (link-preview/layer
+            (:link-preview state)
+            (= :vertical (:writing-mode (:settings state))))]))))))))

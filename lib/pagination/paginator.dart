@@ -336,6 +336,7 @@ List<MglTextSpan> _sliceSpans(List<MglTextSpan> spans, int start, int end) {
           text: span.text.substring(from, to),
           style: span.style,
           href: span.href,
+          note: span.note,
         ),
       );
     }

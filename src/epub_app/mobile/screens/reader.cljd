@@ -6,6 +6,7 @@
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]
+            [epub-app.widgets.link-preview :as link-preview]
             [epub-app.widgets.page :as page]
             [epub-app.widgets.ui :as ui]))
 
@@ -536,21 +537,26 @@
       (fn [_ constraints]
         (let [size (m/Size. (.-maxWidth constraints) (.-maxHeight constraints))]
           (page/schedule-paginate! state size)
-          (m/GestureDetector
-           .onTap (fn []
-                    (store/set-highlight! nil)
-                    (if (:selection state)
-                      (core/clear-selection!)
-                      (store/toggle-ui! :menu-visible)))
-           .onDoubleTap (fn [] (core/add-bookmark!))
-           .child
-           (m/Stack
-            .children
-            [(page/view state size)
-             (m/Positioned
-              .top 0.0 .bottom 0.0 .right 0.0 .width 5.0
-              .child (ui/v-progress (or (:progress state) 0.0)))
-             (overlay state)
-             (if (:error state)
-               (ui/error-banner (:error state) store/clear-error!)
-               (m/SizedBox.shrink))])))))))))
+          (m/Stack
+           .children
+           [(m/GestureDetector
+             .onTap (fn []
+                      (store/set-highlight! nil)
+                      (if (:selection state)
+                        (core/clear-selection!)
+                        (store/toggle-ui! :menu-visible)))
+             .onDoubleTap (fn [] (core/add-bookmark!))
+             .child
+             (m/Stack
+              .children
+              [(page/view state size)
+               (m/Positioned
+                .top 0.0 .bottom 0.0 .right 0.0 .width 5.0
+                .child (ui/v-progress (or (:progress state) 0.0)))
+               (overlay state)
+               (if (:error state)
+                 (ui/error-banner (:error state) store/clear-error!)
+                 (m/SizedBox.shrink))]))
+            (link-preview/layer
+             (:link-preview state)
+             (= :vertical (:writing-mode (:settings state))))]))))))))
