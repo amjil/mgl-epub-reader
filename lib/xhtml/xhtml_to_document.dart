@@ -129,8 +129,9 @@ class XhtmlToDocument {
 
   String _attr(html_dom.Element node, String local) {
     for (final entry in node.attributes.entries) {
-      final key = entry.key.toLowerCase();
-      if (key == local || key.endsWith(':$local')) return entry.value;
+      // html's attribute map keys are Object (often AttributeName), not String.
+      final key = entry.key.toString().toLowerCase();
+      if (key == local || key.endsWith(':$local')) return entry.value.toString();
     }
     return '';
   }
