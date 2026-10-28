@@ -363,6 +363,12 @@ class BookmarkRepository {
         .toList();
   }
 
+  Future<void> rename(String id, String title) async {
+    await (db.update(db.bookmarkRows)..where((t) => t.id.equals(id))).write(
+      BookmarkRowsCompanion(title: Value(title)),
+    );
+  }
+
   Future<void> remove(String id) async {
     await (db.delete(db.bookmarkRows)..where((t) => t.id.equals(id))).go();
   }

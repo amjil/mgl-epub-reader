@@ -5,6 +5,7 @@
             ["package:flutter/services.dart" :as services]
             ["package:file_selector/file_selector.dart" :as fs]
             ["dart:async" :as async]
+            ["dart:io" :as io]
             [epub-app.platform :as platform]
             [epub-app.state.store :as store]))
 
@@ -43,21 +44,59 @@
        "to macos/Runner/DebugProfile.entitlements and Release.entitlements, "
        "then fully restart the app."))
 
-(defn- pick-epub-file []
+(defn- pick-epub-files []
   (let [t0 (.-millisecondsSinceEpoch (dart:core/DateTime.now))
-        file (try
-               (await (fs/openFile
-                       .confirmButtonText "Open"
-                       .acceptedTypeGroups #dart ^fs/XTypeGroup [(epub-type-group)]))
-               (catch Object e
-                 (dart:core/print (str "openFile(typed) failed, retrying unfiltered: " e))
-                 (await (fs/openFile .confirmButtonText "Open"))))
+        files (try
+                (await (fs/openFiles
+                        .confirmButtonText "Open"
+                        .acceptedTypeGroups #dart ^fs/XTypeGroup [(epub-type-group)]))
+                (catch Object e
+                  (dart:core/print (str "openFiles failed, retrying one file: " e))
+                  (let [file (try
+                               (await (fs/openFile
+                                       .confirmButtonText "Open"
+                                       .acceptedTypeGroups #dart ^fs/XTypeGroup [(epub-type-group)]))
+                               (catch Object e2
+                                 (dart:core/print (str "openFile(typed) failed, retrying unfiltered: " e2))
+                                 (await (fs/openFile .confirmButtonText "Open"))))]
+                    (if file [file] []))))
         dt (- (.-millisecondsSinceEpoch (dart:core/DateTime.now)) t0)]
-    (when (and (nil? file) (< dt 400))
+    (when (and (empty? files) (< dt 400))
       (throw (Exception. (picker-fail-msg "dialog returned immediately"))))
-    file))
+    files))
+
+(defn- import-xfile! [file]
+  (let [bytes (await (.readAsBytes file))]
+    (await (.importBytes (bridge) bytes))))
 
 (defonce !picking (atom false))
+
+(defn- import-files! [files]
+  (loop [left (vec files)
+         row nil]
+    (if (seq left)
+      (recur (rest left) (await (import-xfile! (first left))))
+      row)))
+
+(defn import-dropped! [files]
+  (when-not @!picking
+    (let [epubs (filterv (fn [f]
+                           (.endsWith (.toLowerCase (or (.-name f) "")) ".epub"))
+                         (vec (or files [])))]
+      (when (seq epubs)
+        (reset! !picking true)
+        (store/clear-error!)
+        (store/set-status! :loading-book)
+        (try
+          (await (import-files! epubs))
+          (await (refresh-library!))
+          (store/set-status! :idle)
+          (catch Object e
+            (store/set-error! (str e))
+            (store/set-status! :error))
+          (finally
+            (reset! !picking false))))))
+  nil)
 
 (defn pick-and-import! []
   (if @!picking
@@ -67,12 +106,11 @@
       (dart:core/print "pick-and-import!")
       (store/clear-error!)
       (try
-        (let [file (await (pick-epub-file))]
-          (when file
+        (let [files (vec (await (pick-epub-files)))]
+          (when (seq files)
             (store/set-status! :loading-book)
             (try
-              (let [bytes (await (.readAsBytes file))
-                    row (await (.importBytes (bridge) bytes))]
+              (let [row (await (import-files! files))]
                 (await (refresh-library!))
                 (store/set-status! :idle)
                 row)
@@ -104,7 +142,7 @@
      .fontSize (:font-size s)
      .lineHeight (:line-height s)
      .fontFamily (:font-family s)
-     .padding (m/EdgeInsets.all 28.0)
+     .padding (m/EdgeInsets.all (double (or (:margin s) 28.0)))
      .writingMode (if (= (:writing-mode s) :vertical)
                     epub.WritingMode/vertical
                     epub.WritingMode/horizontal)
@@ -148,7 +186,15 @@
                     saved (when-let [lb (:library-book @store/app-state)]
                             (await (.loadProgress (bridge) (.-id lb))))]
                 (when (store/paginate-matches? gen ch-id)
-                  (let [idx (cond
+                  (let [jump (:jump-fraction @store/app-state)
+                        _ (store/set-jump-fraction! nil)
+                        idx (cond
+                              (some? jump)
+                              (let [n (count pages)]
+                                (if (<= n 1)
+                                  0
+                                  (min (dec n) (int (* (double jump) n)))))
+
                               (and pending-position (= (.-chapterId pending-position) ch-id))
                               (page-index-for pages pending-position)
 
@@ -203,6 +249,8 @@
                          (when (seq chapters)
                            (.-id (first chapters))))]
       (store/set-open-book! row book)
+      (store/set-embedded-fonts! (vec (.embeddedFontFamilies (bridge))))
+      (await (store/apply-book-settings! id))
       (store/set-bookmarks! (await (.listBookmarks (bridge) id)))
       (store/set-annotations! (await (.listAnnotations (bridge) id)))
       (when chapter-id
@@ -332,7 +380,8 @@
              {:kind kind
               :text (link-preview-text resolved)
               :chapter-id (.-chapterId resolved)
-              :block-id (.-blockId resolved)})))
+              :block-id (.-blockId resolved)
+              :spans (.-spans resolved)})))
         (catch Exception e
           (store/set-notice! "Could not open link")))))
   nil)
@@ -366,21 +415,88 @@
   (when-let [lb (:library-book @store/app-state)]
     (store/set-bookmarks! (await (.listBookmarks (bridge) (.-id lb))))))
 
-(defn search! [query]
-  (store/set-search! query [])
-  (store/set-highlight! nil)
-  (when (seq query)
-    (store/set-search! query (await (.search (bridge) query)))))
+(defonce !search-gen (atom 0))
 
-(defn go-to-search-hit! [hit]
-  (store/set-highlight!
-   (epub/ReaderSelectionRange.
-    .chapterId (.-chapterId hit)
-    .blockId (.-blockId hit)
-    .start (.-offset hit)
-    .end (+ (.-offset hit) (.-length hit))))
-  (store/set-ui! :search-visible false)
-  (go-to-position! (.-position hit)))
+(defn search! [query]
+  (let [gen (swap! !search-gen inc)
+        q (or query "")]
+    (store/set-search! q [])
+    (store/set-highlight! nil)
+    (if (seq (.trim q))
+      (let [book (:book @store/app-state)
+            current (some-> (:chapter @store/app-state) .-id)
+            ids (mapv (fn [ch] (.-id ch)) (or (some-> book .-chapters) []))
+            ordered (vec (concat (filter #(= % current) ids)
+                                 (remove #(= % current) ids)))]
+        (store/set-search-busy! true)
+        (try
+          (loop [left ordered
+                 acc []]
+            (when (and (= gen @!search-gen) (seq left) (< (count acc) 40))
+              (let [hits (vec (or (await (.searchChapter (bridge)
+                                                         (first left)
+                                                         q
+                                                         .limit (- 40 (count acc))))
+                                  []))
+                    found (into acc hits)]
+                (when (= gen @!search-gen)
+                  (store/set-search-results! found)
+                  (recur (next left) found)))))
+          (finally
+            (when (= gen @!search-gen)
+              (store/set-search-busy! false)))))
+      (store/set-search-busy! false))))
+
+(defn go-to-fraction! [fraction]
+  (let [book (:book @store/app-state)
+        chapters (vec (or (some-> book .-chapters) []))
+        n (count chapters)]
+    (when (pos? n)
+      (let [f (max 0.0 (min 0.999 (double (or fraction 0.0))))
+            scaled (* f n)
+            i (min (dec n) (int scaled))
+            within (- scaled i)
+            ch (nth chapters i)
+            cur (some-> (:chapter @store/app-state) .-id)]
+        (if (= cur (.-id ch))
+          (let [pages (:pages @store/app-state)
+                total (count pages)
+                idx (if (<= total 1)
+                      0
+                      (min (dec total) (int (* within total))))]
+            (go-to-page! idx))
+          (do
+            (store/set-jump-fraction! within)
+            (open-chapter! (.-id ch) :first))))))
+  nil)
+
+(defn go-to-search-hit!
+  ([hit] (go-to-search-hit! hit nil))
+  ([hit idx]
+   (when hit
+     (when (some? idx)
+       (store/set-search-hit-index! idx))
+     (store/set-highlight!
+      (epub/ReaderSelectionRange.
+       .chapterId (.-chapterId hit)
+       .blockId (.-blockId hit)
+       .start (.-offset hit)
+       .end (+ (.-offset hit) (.-length hit))))
+     (store/set-ui! :search-visible false)
+     (go-to-position! (.-position hit)))))
+
+(defn step-search! [delta]
+  (let [results (:search-results @store/app-state)
+        n (count results)]
+    (when (pos? n)
+      (let [cur (or (:search-hit-index @store/app-state) -1)
+            next (cond
+                   (neg? cur) (if (neg? delta) (dec n) 0)
+                   (and (neg? delta) (zero? cur)) (dec n)
+                   (and (pos? delta) (>= cur (dec n))) 0
+                   :else (+ cur delta))]
+        (go-to-search-hit! (nth results next) next))))
+  nil)
 
 (defn select-span! [^epub/MglBlock block start end text]
   (when-let [ch (:chapter @store/app-state)]
@@ -436,9 +552,11 @@
      (await (.listAnnotations (bridge) (.-bookId ann))))
     (clear-selection!)))
 
-(defn add-highlight! []
-  (persist-annotation!
-   (annotation-from-selection epub.AnnotationStyle/highlight "yellow" nil)))
+(defn add-highlight!
+  ([] (add-highlight! "yellow"))
+  ([color]
+   (persist-annotation!
+    (annotation-from-selection epub.AnnotationStyle/highlight (or color "yellow") nil))))
 
 (defn add-underline! []
   (persist-annotation!
@@ -470,8 +588,49 @@
           cite (str "\"" (.-text sel) "\"\n— "
                     (or (some-> book .-title) "")
                     (if ch (str ", " (.-title ch)) ""))]
-      (services/Clipboard.setData (services/ClipboardData. .text cite))
+      (try
+        (await (.shareText (bridge) cite))
+        (catch Object e
+          (dart:core/print (str "share failed, copying instead: " e))
+          (services/Clipboard.setData (services/ClipboardData. .text cite))
+          (store/set-notice! "Copied. Sharing is unavailable on this device.")))
       (clear-selection!))))
+
+(defn- export-body []
+  (let [{:keys [book bookmarks annotations]} @store/app-state
+        title (or (some-> book .-title) "Book")
+        marks (apply str
+                     (map (fn [bm]
+                            (str "- " (or (.-title bm) "Bookmark") "\n"))
+                          bookmarks))
+        notes (apply str
+                     (map (fn [ann]
+                            (str "- [" (.-color ann) " "
+                                 (.name (.-style ann)) "] "
+                                 (or (.-note ann) "") "\n"))
+                          annotations))]
+    (str title "\n\nBookmarks\n" marks "\nHighlights and notes\n" notes)))
+
+(defn export-annotations! []
+  (try
+    (let [loc (await (fs/getSaveLocation
+                      .suggestedName "notes.txt"
+                      .confirmButtonText "Export"))]
+      (when-let [path (some-> loc .-path)]
+        (when (seq path)
+          (await (.writeAsString (io/File. path) (export-body)))
+          (store/set-notice! "Exported notes"))))
+    (catch Object e
+      (store/set-notice! (str "Could not export notes: " e))))
+  nil)
+
+(defn rename-bookmark! [id title]
+  (let [name (.trim (or title ""))]
+    (when (and id (seq name))
+      (await (.renameBookmark (bridge) id name))
+      (when-let [lb (:library-book @store/app-state)]
+        (store/set-bookmarks! (await (.listBookmarks (bridge) (.-id lb)))))))
+  nil)
 
 (defn remove-annotation! [id]
   (await (.removeAnnotation (bridge) id))
@@ -504,4 +663,5 @@
 (defn close-book! []
   (when-let [eng (some-> @!bridge .-engine)]
     (.close ^epub/MglEpubEngineImpl eng))
+  (store/set-embedded-fonts! [])
   (store/close-book!))

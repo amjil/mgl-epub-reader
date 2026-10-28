@@ -1,6 +1,7 @@
 (ns epub-app.widgets.link-preview
   "Small card for footnote and fragment targets."
   (:require ["package:flutter/material.dart" :as m]
+            ["package:mgl_epub_reader/mgl_epub_reader.dart" :as epub]
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]
@@ -24,8 +25,9 @@
      (m/Column
       .children
       (filterv some?
-               [(ui/icon-btn m.Icons/close_rounded
+               [                (ui/icon-btn m.Icons/close_rounded
                              dismiss!
+                             :tooltip "Close"
                              :size 18.0)
                 (when (:chapter-id preview)
                   (ui/icon-btn m.Icons/menu_book_outlined
@@ -40,20 +42,24 @@
                                   :size 15.0
                                   :weight m.FontWeight/bold)))])))))
 
-(defn- preview-body [text vertical?]
-  (if vertical?
-    (m/ListView
-     .scrollDirection m.Axis/horizontal
-     .padding (m/EdgeInsets.symmetric .horizontal 16.0 .vertical 12.0)
-     .children [(ui/text text {:size 16.0})])
-    (m/ListView
-     .padding (m/EdgeInsets.all 16.0)
-     .children
-     [(m/Text text
-              .style (m/TextStyle
-                      .fontSize 16.0
-                      .height 1.45
-                      .color (t/ink)))])))
+(defn- preview-body [preview vertical?]
+  (let [child (epub/LinkRichText.
+               .fallback (or (:text preview) "")
+               .vertical vertical?
+               .spans (:spans preview)
+               .color (t/ink)
+               .linkColor t/primary
+               .onLinkTap (fn [href note?]
+                            (core/open-link! href note?)
+                            nil))]
+    (if vertical?
+      (m/ListView
+       .scrollDirection m.Axis/horizontal
+       .padding (m/EdgeInsets.symmetric .horizontal 16.0 .vertical 12.0)
+       .children [child])
+      (m/ListView
+       .padding (m/EdgeInsets.all 16.0)
+       .children [child]))))
 
 (defn- card [preview vertical?]
   (m/Row
@@ -61,7 +67,7 @@
    .children
    [(title-rail preview)
     (m/Expanded
-     .child (preview-body (or (:text preview) "") vertical?))]))
+     .child (preview-body preview vertical?))]))
 
 (defn layer
   "Dimmed card over the reader. Nothing when no link is open."

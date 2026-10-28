@@ -118,15 +118,17 @@
      (m/Expanded
       .child
       (m/Padding
-       .padding (m/EdgeInsets.symmetric .horizontal 6.0 .vertical 8.0)
+       .padding (m/EdgeInsets.symmetric .horizontal 4.0 .vertical 8.0)
        .child
-       (ui/text
-        (str (or (some-> (:chapter state) .-title) "")
-             "  "
-             (inc (:page state))
-             " / "
-             (count (:pages state)))
-        {:size 11.0 :color (t/ink-muted) :max-lines 1})))
+       (m/Column
+        .children
+        [(ui/text
+          (str (inc (:page state)) " / " (count (:pages state)))
+          {:size 11.0 :color (t/ink-muted) :max-lines 1})
+         (m/Expanded
+          .child
+          (m/Center
+           .child (ui/position-slider (:progress state))))])))
      (ui/icon-btn m.Icons/chevron_right
                   (fn [] (core/next-page!))
                   :tooltip "Next page")])))

@@ -2,21 +2,46 @@
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
             [epub-app.services.epub-core :as core]
+            [epub-app.theme :as t]
             [epub-app.widgets.ui :as ui]))
 
-(defn- toc-tile [item]
+(defn- path-tail [href]
+  (let [s (or href "")
+        hash (.indexOf s "#")
+        path (if (neg? hash) s (.substring s 0 hash))
+        slash (.lastIndexOf path "/")]
+    (.toLowerCase (if (neg? slash) path (.substring path (inc slash))))))
+
+(defn- current? [item chapter]
+  (and chapter
+       (let [a (path-tail (.-href item))
+             b (path-tail (.-href chapter))]
+         (and (seq a) (= a b)))))
+
+(defn- toc-tile [item depth current?]
   (mgl/MongolListTile
-   .title (ui/text (.-title item) {:size 13.0})
+   .contentPadding (m/EdgeInsets.only
+                    .left (+ 8.0 (* 14.0 (double depth)))
+                    .right 8.0
+                    .top 4.0
+                    .bottom 4.0)
+   .title (ui/text (.-title item)
+                   {:size (if (pos? depth) 12.0 14.0)
+                    :color (if current? t/primary (t/ink))
+                    :weight (if current? m.FontWeight/bold m.FontWeight/normal)
+                    :max-lines 2})
    .onTap (fn [] (core/open-toc-href! (.-href item)) nil)))
 
-(defn pane [items]
+(defn- toc-tiles [items depth chapter]
+  (mapcat (fn [item]
+            (cons (toc-tile item depth (current? item chapter))
+                  (toc-tiles (.-children item) (inc depth) chapter)))
+          items))
+
+(defn pane [items chapter]
   (if (empty? items)
     (ui/empty-state m.Icons/list "No contents")
     (m/ListView
      .scrollDirection m.Axis/horizontal
      .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
-     .children
-     (vec (mapcat (fn [item]
-                    (cons (toc-tile item)
-                          (map toc-tile (.-children item))))
-                  items)))))
+     .children (vec (toc-tiles items 0 chapter)))))

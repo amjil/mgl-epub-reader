@@ -1,5 +1,5 @@
 (ns epub-app.state.store
-  (:require ["package:shared_preferences/shared_preferences.dart" :as sp]
+  (:require             ["package:shared_preferences/shared_preferences.dart" :as sp]
             [epub-app.theme :as theme]))
 
 (def ^:private pref-font "reader_font_size")
@@ -10,6 +10,26 @@
 (def ^:private pref-dir "reader_reading_direction")
 (def ^:private pref-family "reader_font_family")
 (def ^:private pref-ime "reader_ime_mode")
+(def ^:private pref-margin "reader_margin")
+(defn- book-pref [book-id]
+  (str "book_reader_settings_" book-id))
+
+(defn- settings-text [settings]
+  (str "font-size=" (double (:font-size settings)) "\n"
+       "line-height=" (double (:line-height settings)) "\n"
+       "margin=" (double (or (:margin settings) 28.0)) "\n"
+       "writing-mode=" (name (:writing-mode settings)) "\n"
+       "reading-direction=" (name (:reading-direction settings)) "\n"
+       "font-family=" (or (:font-family settings) "OyunQaganTig") "\n"
+       "theme=" (name (:theme settings)) "\n"))
+
+(defn- parse-settings [raw]
+  (into {}
+        (keep (fn [line]
+                (let [i (.indexOf line "=")]
+                  (when (pos? i)
+                    [(.substring line 0 i) (.substring line (inc i))])))
+              (.split (or raw "") "\n"))))
 
 (defonce app-state
   (atom
@@ -32,6 +52,9 @@
     :annotations []
     :search-query ""
     :search-results []
+    :search-hit-index -1
+    :search-busy false
+    :jump-fraction nil
     :highlight nil
     :progress 0.0
     :paginate-gen 0
@@ -43,6 +66,8 @@
                :writing-mode :vertical
                :reading-direction :left-to-right
                :font-family "OyunQaganTig"
+               :margin 28.0
+               :embedded-fonts []
                :ime-mode :builtin}
     :ui {:menu-visible false
          :toc-visible false
@@ -65,11 +90,58 @@
                (.setString prefs pref-mode (name (:writing-mode settings)))
                (.setString prefs pref-dir (name (:reading-direction settings)))
                (.setString prefs pref-family (:font-family settings))
-               (.setString prefs pref-ime (name (:ime-mode settings)))))
+               (.setDouble prefs pref-margin (double (or (:margin settings) 28.0)))
+               (.setString prefs pref-ime (name (:ime-mode settings)))
+               (when-let [book (:library-book @app-state)]
+                 (.setString prefs (book-pref (.-id book))
+                             (settings-text settings)))))
       (.catchError (fn [e]
                      (dart:core/print (str "settings write failed: " e))
                      nil)))
   nil)
+
+(defn- read-num [m k fallback]
+  (let [v (get m k)
+        n (when (and v (seq (str v)))
+            (.tryParse dart:core/double (str v)))]
+    (if (nil? n) fallback n)))
+
+(defn- read-name [m k fallback]
+  (let [v (get m k)]
+    (if (or (nil? v) (= "" v)) fallback (keyword v))))
+
+(defn merge-book-settings! [saved]
+  (when (seq saved)
+    (swap! app-state
+           (fn [s]
+             (-> s
+                 (update :settings
+                         (fn [cur]
+                           (assoc cur
+                                  :font-size (read-num saved "font-size" (:font-size cur))
+                                  :line-height (read-num saved "line-height" (:line-height cur))
+                                  :margin (read-num saved "margin" (or (:margin cur) 28.0))
+                                  :writing-mode (read-name saved "writing-mode" (:writing-mode cur))
+                                  :reading-direction (read-name saved "reading-direction"
+                                                                (:reading-direction cur))
+                                  :font-family (or (get saved "font-family") (:font-family cur))
+                                  :theme (read-name saved "theme" (:theme cur)))))
+                 (update :paginate-gen (fnil inc 0))
+                 (assoc :pages [] :page 0 :viewport-key nil)))))
+  nil)
+
+(defn apply-book-settings! [book-id]
+  (-> (.getInstance sp/SharedPreferences)
+      (.then (fn [prefs]
+               (let [raw (.getString prefs (book-pref book-id))]
+                 (when (and raw (seq raw))
+                   (merge-book-settings! (parse-settings raw))))))
+      (.catchError (fn [e]
+                     (dart:core/print (str "book settings read failed: " e))
+                     nil))))
+
+(defn set-embedded-fonts! [names]
+  (swap! app-state assoc-in [:settings :embedded-fonts] (vec (or names []))))
 
 (defn load-prefs! []
   (-> (.getInstance sp/SharedPreferences)
@@ -91,6 +163,8 @@
                           (assoc :reading-direction (keyword (.getString prefs pref-dir)))
                           (.containsKey prefs pref-family)
                           (assoc :font-family (.getString prefs pref-family))
+                          (.containsKey prefs pref-margin)
+                          (assoc :margin (.getDouble prefs pref-margin))
                           (.containsKey prefs pref-ime)
                           (assoc :ime-mode (keyword (.getString prefs pref-ime))))))
                (theme/apply-appearance!
@@ -204,7 +278,7 @@
   (swap! app-state assoc :note-draft (or text "")))
 
 (def ^:private layout-setting-keys
-  #{:font-size :line-height :writing-mode :reading-direction :font-family})
+  #{:font-size :line-height :writing-mode :reading-direction :font-family :margin})
 
 (defn update-settings! [k v]
   (when (= k :app-appearance)
@@ -308,15 +382,33 @@
                           :annotations []
                           :search-query ""
                           :search-results []
+                          :search-hit-index -1
+                          :jump-fraction nil
                           :highlight nil
                           :progress 0.0
                           :viewport-key nil
                           :link-preview nil
-                          :status :idle))))
+                          :status :idle)
+                         (assoc-in [:settings :embedded-fonts] []))))
   (hide-chrome!))
 
 (defn set-search! [query results]
-  (swap! app-state assoc :search-query query :search-results (vec (or results []))))
+  (swap! app-state assoc
+         :search-query query
+         :search-results (vec (or results []))
+         :search-hit-index -1))
+
+(defn set-search-results! [results]
+  (swap! app-state assoc :search-results (vec (or results []))))
+
+(defn set-search-hit-index! [idx]
+  (swap! app-state assoc :search-hit-index idx))
+
+(defn set-search-busy! [busy?]
+  (swap! app-state assoc :search-busy (boolean busy?)))
+
+(defn set-jump-fraction! [fraction]
+  (swap! app-state assoc :jump-fraction fraction))
 
 (defn set-bookmarks! [items]
   (swap! app-state assoc :bookmarks (vec (or items []))))

@@ -19,6 +19,7 @@ export 'persistence/database.dart';
 export 'persistence/repositories.dart';
 export 'search/search_engine.dart';
 // Page view exports MglPageView, including onTextSelect / onBlockLongPress.
+export 'ui/link_text.dart';
 export 'ui/page_view.dart';
 export 'xhtml/css_parser.dart';
 export 'xhtml/xhtml_parser.dart';

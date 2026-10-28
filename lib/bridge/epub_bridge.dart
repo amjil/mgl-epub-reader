@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../annotation/annotation.dart';
@@ -92,6 +93,16 @@ class EpubBridge {
 
   Future<List<SearchResult>> search(String query) => engine.search(query);
 
+  Future<List<SearchResult>> searchChapter(
+    String chapterId,
+    String query, {
+    int limit = 40,
+  }) {
+    return engine.searchChapter(chapterId, query, limit: limit);
+  }
+
+  List<String> embeddedFontFamilies() => engine.embeddedFontFamilies();
+
   Future<void> saveProgress(ReadingProgress value) async {
     await progress.save(value);
     await books.touch(
@@ -114,6 +125,9 @@ class EpubBridge {
   Future<List<Bookmark>> listBookmarks(String bookId) => bookmarks.list(bookId);
 
   Future<void> removeBookmark(String id) => bookmarks.remove(id);
+
+  Future<void> renameBookmark(String id, String title) =>
+      bookmarks.rename(id, title);
 
   Future<Annotation> addAnnotation(Annotation annotation) =>
       annotations.add(annotation);
@@ -151,6 +165,10 @@ class EpubBridge {
       fromChapterId: fromChapterId,
       note: note,
     );
+  }
+
+  Future<void> shareText(String text) async {
+    await Share.share(text);
   }
 
   Future<bool> openExternalUrl(String href) async {

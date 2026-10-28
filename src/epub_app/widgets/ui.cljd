@@ -3,6 +3,8 @@
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
             ["dart:ui" :as ui-core]
+            [epub-app.services.epub-core :as core]
+            [epub-app.state.store :as store]
             [epub-app.theme :as t]))
 
 (defn gap-h [n] (m/SizedBox .width (double n)))
@@ -218,6 +220,24 @@
                  .max max-v
                  .value value
                  .onChanged on-change))))])))
+
+(defn position-slider
+  "Vertical slider for the reader's spine progress."
+  [progress]
+  (let [value (double (max 0.0 (min 1.0 (or progress 0.0))))]
+    (m/Semantics
+     .label "Jump to position"
+     .slider true
+     .child
+     (m/RotatedBox
+      .quarterTurns 3
+      .child
+      (m/Slider
+       .min 0.0
+       .max 1.0
+       .value value
+       .onChanged (fn [v] (store/set-progress! v) nil)
+       .onChangeEnd (fn [v] (core/go-to-fraction! v) nil))))))
 
 ;; Latin character style (for error messages)
 (defn- latin-style [size color]

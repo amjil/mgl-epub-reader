@@ -93,6 +93,17 @@ class MglEpubEngineImpl implements MglEpubEngine {
     }
   }
 
+  String _fontFamilyName(EpubManifestItem item) {
+    final href = item.href;
+    final slash = href.lastIndexOf('/');
+    final base = slash >= 0 ? href.substring(slash + 1) : href;
+    final dot = base.lastIndexOf('.');
+    final name = (dot > 0 ? base.substring(0, dot) : base).trim();
+    if (name.isEmpty) return item.id;
+    final taken = _fonts.loadedFamilies.contains(name);
+    return taken ? '$name ${item.id}' : name;
+  }
+
   Future<void> _loadEmbeddedFonts() async {
     final parsed = _parsed;
     final resources = _resources;
@@ -101,7 +112,7 @@ class MglEpubEngineImpl implements MglEpubEngine {
       if (!item.isFont) continue;
       try {
         await _fonts.loadEmbedded(
-          family: item.id,
+          family: _fontFamilyName(item),
           resourceId: item.id,
           loader: resources,
         );
@@ -157,17 +168,34 @@ class MglEpubEngineImpl implements MglEpubEngine {
   @override
   Future<List<SearchResult>> search(String query) async {
     final parsed = _require();
+    final out = <SearchResult>[];
+    const limit = 40;
     for (final chapter in parsed.book.chapters) {
-      if (!_documents.containsKey(chapter.id)) {
-        try {
-          await _documentFor(chapter);
-        } catch (_) {
-          // Skip unreadable chapters; search still runs on loaded ones.
-        }
-      }
+      if (out.length >= limit) break;
+      out.addAll(await searchChapter(chapter.id, query, limit: limit - out.length));
     }
-    return _search.searchDocuments(_documents, query);
+    return out;
   }
+
+  /// Search one chapter. Parses that chapter only, so the first hit can show
+  /// before the rest of a long book is read.
+  Future<List<SearchResult>> searchChapter(
+    String chapterId,
+    String query, {
+    int limit = 40,
+  }) async {
+    final parsed = _require();
+    final chapter = parsed.book.chapterById(chapterId);
+    if (chapter == null || limit <= 0) return const [];
+    try {
+      final doc = await _documentFor(chapter);
+      return _search.searchDocument(doc, query, limit: limit);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  List<String> embeddedFontFamilies() => _fonts.loadedFamilies;
 
   int pageIndexFor(List<MglPage> pages, ReaderPosition position) {
     for (var i = 0; i < pages.length; i++) {
@@ -330,6 +358,7 @@ class MglEpubEngineImpl implements MglEpubEngine {
             blockId: block.id,
             text: text.length > 1600 ? '${text.substring(0, 1600)}…' : text,
             length: text.length,
+            spans: block.spans,
           );
         }
       }
@@ -353,6 +382,7 @@ class MglEpubEngineImpl implements MglEpubEngine {
         text: anchor?.text ?? '',
         chapterId: chapter.id,
         blockId: blockId,
+        spans: anchor?.spans ?? const [],
       );
     }
     return LinkResolution(

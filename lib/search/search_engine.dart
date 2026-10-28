@@ -40,35 +40,62 @@ class TextIndex {
     return TextIndex(entries);
   }
 
-  List<SearchResult> search(String query, {int limit = 50}) {
-    final q = query.trim().toLowerCase();
-    if (q.isEmpty) return const [];
+  List<SearchResult> search(String query, {int limit = 40}) {
+    final tokens = _tokens(query);
+    if (tokens.isEmpty) return const [];
     final out = <SearchResult>[];
     for (final e in entries) {
-      var from = 0;
       final hay = e.text.toLowerCase();
-      while (true) {
-        final idx = hay.indexOf(q, from);
-        if (idx < 0) break;
-        out.add(
-          SearchResult(
-            chapterId: e.chapterId,
-            blockId: e.blockId,
-            offset: idx,
-            length: query.trim().length,
-            snippet: _snippet(e.text, idx, query.trim().length),
-          ),
-        );
-        if (out.length >= limit) return out;
-        from = idx + q.length;
+      if (tokens.length == 1) {
+        final q = tokens.first;
+        var from = 0;
+        while (true) {
+          final idx = hay.indexOf(q, from);
+          if (idx < 0) break;
+          out.add(_hit(e, idx, q.length));
+          if (out.length >= limit) return out;
+          from = idx + q.length;
+        }
+      } else if (tokens.every(hay.contains)) {
+        final q = tokens.first;
+        final idx = hay.indexOf(q);
+        if (idx >= 0) {
+          out.add(_hit(e, idx, q.length));
+          if (out.length >= limit) return out;
+        }
       }
     }
     return out;
   }
 
+  static List<String> _tokens(String query) {
+    return query
+        .trim()
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+
+  static SearchResult _hit(TextIndexEntry e, int offset, int length) {
+    return SearchResult(
+      chapterId: e.chapterId,
+      blockId: e.blockId,
+      offset: offset,
+      length: length,
+      snippet: _snippet(e.text, offset, length),
+    );
+  }
+
+  static int _clamp(int value, int max) {
+    if (value < 0) return 0;
+    if (value > max) return max;
+    return value;
+  }
+
   static String _snippet(String text, int offset, int length) {
-    final start = (offset - 24).clamp(0, text.length);
-    final end = (offset + length + 24).clamp(0, text.length);
+    final start = _clamp(offset - 24, text.length);
+    final end = _clamp(offset + length + 24, text.length);
     var s = text.substring(start, end).replaceAll(RegExp(r'\s+'), ' ');
     if (start > 0) s = '…$s';
     if (end < text.length) s = '$s…';
@@ -85,10 +112,19 @@ class TextIndexEntry {
 }
 
 class SearchEngine {
+  List<SearchResult> searchDocument(
+    MglDocument document,
+    String query, {
+    int limit = 40,
+  }) {
+    return TextIndex.fromDocuments({document.id: document})
+        .search(query, limit: limit);
+  }
+
   List<SearchResult> searchDocuments(
     Map<String, MglDocument> documents,
     String query, {
-    int limit = 50,
+    int limit = 40,
   }) {
     return TextIndex.fromDocuments(documents).search(query, limit: limit);
   }
