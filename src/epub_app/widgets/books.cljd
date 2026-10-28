@@ -1,9 +1,9 @@
 (ns epub-app.widgets.books
-  "Book components library - using mgl-components shared components"
+  "Book cards, shelf filters, and the cover overflow menu."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
             ["dart:io" :as io]
-            [components.menu :as menu]
+            [cljd.flutter :as f]
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]
@@ -63,40 +63,160 @@
                 .padding (m/EdgeInsets.symmetric .horizontal 16.0 .vertical 10.0))
         .child (t/mongol-label "ᠬᠠᠰᠤᠬᠤ" :color m.Colors/white :weight m.FontWeight/w500))]))))
 
-;; Book menu - using components.menu
+;; Vertical labels need a slot as tall as the string. The shared popup sizes
+;; that column from MongolText's max intrinsic height, which is about one em
+;; (the 27px box that overflowed), so the book menu lays itself out.
+
+(defn- label-slot [title]
+  ;; One em per letter, plus slack so the last glyph is not flush with the clip.
+  (+ 12.0 (* 20.0 (double (max 1 (count (or title "")))))))
+
+(defn- menu-block-height [items available]
+  (let [text-h (reduce (fn [m item]
+                         (if (= :item (:type item))
+                           (max m (label-slot (:title item)))
+                           m))
+                       48.0
+                       items)
+        ;; Icon, gap, and the item's vertical padding.
+        wanted (+ text-h 44.0)]
+    (min (max 64.0 available) wanted)))
+
+(defn- book-menu-items [ctx book]
+  [{:type :item
+    :title (if (.-favorite book) "ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ ᠴᠡᠭᠡᠷᠯᠡᠬᠦ" "ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ")
+    :leading (if (.-favorite book) m.Icons/star_rounded m.Icons/star_outline_rounded)
+    :leading-color t/accent
+    :on-tap #(core/toggle-favorite! (.-id book) (not (.-favorite book)))}
+   {:type :item
+    :title (if (.-finished book) "ᠤᠩᠰᠢᠭᠰᠠᠨ ᠦᠭᠡᠢ" "ᠤᠩᠰᠢᠭᠰᠠᠨ")
+    :leading m.Icons/check_circle_outline_rounded
+    :leading-color t/success
+    :on-tap #(core/set-finished! (.-id book) (not (.-finished book)))}
+   {:type :divider}
+   {:type :item
+    :title "ᠬᠠᠰᠤᠬᠤ"
+    :leading m.Icons/delete_outline_rounded
+    :leading-color t/danger
+    :on-tap #(confirm-delete! ctx book)}])
+
+(defn- popup-item [item close! height]
+  (if (= :divider (:type item))
+    (m/VerticalDivider .width 12.0 .color (t/fade (t/ink) 0.12))
+    (m/InkWell
+     .onTap (fn []
+              (when-let [tap (:on-tap item)] (tap))
+              (close!)
+              nil)
+     .child
+     (m/SizedBox
+      .height height
+      .width 48.0
+      .child
+      (m/Padding
+       .padding (m/EdgeInsets.symmetric .horizontal 6.0 .vertical 8.0)
+       .child
+       (m/Column
+        .children
+        [(m/Icon (:leading item)
+                 .size 22.0
+                 .color (or (:leading-color item) (t/ink)))
+         (ui/gap-v 6)
+         (m/Expanded
+          .child
+          (m/SingleChildScrollView
+           .scrollDirection m.Axis/vertical
+           .child
+           (mgl/MongolText
+            (or (:title item) "")
+            .style (m/TextStyle
+                    .fontFamily t/font
+                    .fontSize 14.0
+                    .height 1.0
+                    .color (t/ink)))))]))))))
+
+(defn- popup-card [items close! height]
+  (m/Material
+   .color (t/surface)
+   .elevation 8.0
+   .borderRadius (m/BorderRadius.circular t/radius-l)
+   .clipBehavior m.Clip/antiAlias
+   .child
+   (m/SizedBox
+    .height height
+    .child
+    (m/Row
+     .mainAxisSize m.MainAxisSize/min
+     .crossAxisAlignment m.CrossAxisAlignment/stretch
+     .children (mapv #(popup-item % close! height) items)))))
+
 (defn book-menu [ctx book]
-  (menu/custom-popup-menu
-   {:trigger-builder
-    (fn [show-menu]
+  (f/widget
+   :context host
+   :let [dispose-fn (fn [a]
+                      (when-let [^m/OverlayEntry entry @a]
+                        (.remove entry))
+                      nil)]
+   :managed [layer-link (m/LayerLink.) :dispose nil
+             entry-atom (atom nil)
+             :dispose dispose-fn]
+   (let [close! (fn []
+                  (when-let [^m/OverlayEntry entry @entry-atom]
+                    (.remove entry)
+                    (reset! entry-atom nil))
+                  nil)
+         show! (fn []
+                 (when (nil? @entry-atom)
+                   (let [box ^m/RenderBox (.findRenderObject host)
+                         origin (.localToGlobal box m/Offset.zero)
+                         box-h (.-height (.-size box))
+                         screen-h (.-height (.-size (m/MediaQuery.of host)))
+                         top (.-dy origin)
+                         below (- screen-h (+ top box-h) 12.0)
+                         above (- top 12.0)
+                         open-below? (>= below above)
+                         available (max 64.0 (if open-below? below above))
+                         items (book-menu-items ctx book)
+                         height (menu-block-height items available)
+                         entry (m/OverlayEntry
+                                .builder
+                                (fn [_]
+                                  (m/Stack
+                                   .children
+                                   [(m/Positioned.fill
+                                     .child
+                                     (m/GestureDetector
+                                      .behavior m.HitTestBehavior/translucent
+                                      .onTap close!))
+                                    (m/CompositedTransformFollower
+                                     .link layer-link
+                                     .showWhenUnlinked false
+                                     .targetAnchor (if open-below?
+                                                     m.Alignment/bottomCenter
+                                                     m.Alignment/topCenter)
+                                     .followerAnchor (if open-below?
+                                                       m.Alignment/topCenter
+                                                       m.Alignment/bottomCenter)
+                                     .offset (m/Offset. 0.0 (if open-below? 4.0 -4.0))
+                                     .child (popup-card items close! height))])))]
+                     (reset! entry-atom entry)
+                     (-> (m/Overlay.of host) (.insert entry))))
+                 nil)]
+     (m/CompositedTransformTarget
+      .link layer-link
+      .child
       (m/Material
        .color m.Colors/transparent
        .child
        (m/InkWell
-        .onTap show-menu
+        .onTap show!
         .borderRadius (m/BorderRadius.circular t/radius-s)
         .child
         (m/Padding
          .padding (m/EdgeInsets.all 6.0)
-         .child (m/Icon m.Icons/more_vert_rounded .color (t/ink-muted) .size 20.0)))))
-    :bg-color (t/surface)
-    :border-radius t/radius-l
-    :menu-width 300.0
-    :items [{:type :item
-             :title (if (.-favorite book) "ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ ᠴᠡᠭᠡᠷᠯᠡᠬᠦ" "ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ")
-             :leading (if (.-favorite book) m.Icons/star_rounded m.Icons/star_outline_rounded)
-             :leading-color t/accent
-             :on-tap #(core/toggle-favorite! (.-id book) (not (.-favorite book)))}
-            {:type :item
-             :title (if (.-finished book) "ᠤᠩᠰᠢᠭᠰᠠᠨ ᠦᠭᠡᠢ" "ᠤᠩᠰᠢᠭᠰᠠᠨ")
-             :leading m.Icons/check_circle_outline_rounded
-             :leading-color t/success
-             :on-tap #(core/set-finished! (.-id book) (not (.-finished book)))}
-            {:type :divider}
-            {:type :item
-             :title "ᠬᠠᠰᠤᠬᠤ"
-             :leading m.Icons/delete_outline_rounded
-             :leading-color t/danger
-             :on-tap #(confirm-delete! ctx book)}]}))
+         .child (m/Icon m.Icons/more_vert_rounded
+                        .color (t/ink-muted)
+                        .size 20.0))))))))
 
 ;; Cover placeholder
 (defn cover-placeholder
