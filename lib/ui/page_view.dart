@@ -670,6 +670,26 @@ class _ImageBlockState extends State<_ImageBlock> {
   }
 }
 
+/// Page widget ClojureDart should construct.
+///
+/// [MglPageView] already takes [MglPageView.onTextSelect]. This subclass repeats
+/// that named parameter so a compiler still holding the pre-selection
+/// `onBlockLongPress`-only signature does not reject `.onTextSelect`.
+class MglReaderPage extends MglPageView {
+  const MglReaderPage({
+    super.key,
+    required super.page,
+    required super.config,
+    super.colors,
+    super.loadImage,
+    super.highlight,
+    super.selection,
+    super.annotations,
+    super.onTextSelect,
+    super.onLinkTap,
+  });
+}
+
 /// Decode image bytes, optionally downsampling to [targetWidth].
 Future<ui.Image> decodeImage(List<int> bytes, {int? targetWidth}) {
   final codec = ui.instantiateImageCodec(

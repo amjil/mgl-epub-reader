@@ -37,7 +37,7 @@
         anns (if ch-id
                (filterv #(= (.-chapterId %) ch-id) (:annotations state))
                (:annotations state))]
-    (epub/MglPageView.
+    (epub/MglReaderPage.
      .page pg
      .config (core/layout-config size)
      .colors (core/theme-colors)
