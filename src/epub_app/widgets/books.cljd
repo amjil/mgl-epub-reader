@@ -16,12 +16,16 @@
    [:finished "ᠤᠩᠰᠢᠭᠰᠠᠨ"]])
 
 (defn filtered-books [state]
-  (let [books (:library state)]
-    (case (:library-filter state)
-      :favorites (filterv #(.-favorite %) books)
-      :finished (filterv #(.-finished %) books)
-      :recent (vec (take 20 books))
-      (vec books))))
+  (let [books (:library state)
+        shelf (case (:library-filter state)
+                :favorites (filterv #(.-favorite %) books)
+                :finished (filterv #(.-finished %) books)
+                :recent (vec (take 20 books))
+                (vec books))
+        q (or (:library-search-query state) "")]
+    (if (seq q)
+      (filterv #(matches-query? % q) shelf)
+      shelf)))
 
 (defn matches-query? [book query]
   (let [q (.toLowerCase (or query ""))
