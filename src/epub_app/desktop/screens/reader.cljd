@@ -6,7 +6,6 @@
             [epub-app.desktop.shortcuts :as shortcuts]
             [epub-app.desktop.widgets.chrome :as chrome]
             [epub-app.desktop.widgets.panels :as panels]
-            [epub-app.desktop.widgets.toc :as toc]
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]
@@ -146,32 +145,6 @@
                           .child
                           (ui/text (:error state) {:color m.Colors/white})))))])))))))))
 
-(defn- toc-and-page [state]
-  (m/LayoutBuilder
-   .builder
-   (fn [_ constraints]
-     (let [avail (.-maxWidth constraints)
-           toc? (:toc-visible (:ui state))
-           max-toc (max t/toc-pane-min-width (- avail 200.0))
-           toc-w (chrome/clamp-toc-width (:toc-pane-width state) max-toc)]
-       (m/Row
-        .crossAxisAlignment m.CrossAxisAlignment/stretch
-        .children
-        (filterv some?
-                 [(when toc?
-                    (m/SizedBox
-                     .width toc-w
-                     .child
-                     (m/DecoratedBox
-                      .decoration (m/BoxDecoration
-                                   .color (t/surface)
-                                   .border (m/Border
-                                            .right (m/BorderSide .color (t/outline) .width 1.0)))
-                      .child (toc/pane (or (some-> (:book state) .-toc) [])))))
-                  (when toc? (chrome/toc-split-handle max-toc))
-                  (m/Expanded
-                   .child (reading-area state))]))))))
-
 (defn screen []
   (f/widget
    :watch [state store/app-state]
@@ -216,11 +189,13 @@
         .body
         (m/SafeArea
          .child
-         (m/Row
-          .crossAxisAlignment m.CrossAxisAlignment/stretch
+         (m/Stack
+          .fit m.StackFit/expand
           .children
-          (filterv some?
-                   [(chrome/left-rail (:book state) ui-state)
-                    (m/Expanded .child (toc-and-page state))
-                    (panels/docked state)
-                    (chrome/right-rail state)])))))))))
+          [(m/Row
+            .crossAxisAlignment m.CrossAxisAlignment/stretch
+            .children
+            [(chrome/left-rail (:book state) ui-state)
+             (m/Expanded .child (reading-area state))
+             (chrome/right-rail state)])
+           (panels/overlay state)]))))))))

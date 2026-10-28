@@ -2,7 +2,6 @@
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
             [epub-app.services.epub-core :as core]
-            [epub-app.theme :as t]
             [epub-app.widgets.ui :as ui]))
 
 (defn- toc-tile [item]
@@ -11,24 +10,13 @@
    .onTap (fn [] (core/open-toc-href! (.-href item)) nil)))
 
 (defn pane [items]
-  (m/ColoredBox
-   .color (t/surface)
-   .child
-   (m/Column
-    .crossAxisAlignment m.CrossAxisAlignment/stretch
-    .children
-    [(m/Padding
-      .padding (m/EdgeInsets.fromLTRB 12.0 16.0 8.0 8.0)
-      .child (t/mongol-label "ᠭᠠᠷᠴᠠᠭ" :size 13.0 :weight m.FontWeight/bold))
-     (m/Expanded
-      .child
-      (if (empty? items)
-        (ui/empty-state m.Icons/list "No contents")
-        (m/ListView
-         .scrollDirection m.Axis/horizontal
-         .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
-         .children
-         (vec (mapcat (fn [item]
-                        (cons (toc-tile item)
-                              (map toc-tile (.-children item))))
-                      items)))))])))
+  (if (empty? items)
+    (ui/empty-state m.Icons/list "No contents")
+    (m/ListView
+     .scrollDirection m.Axis/horizontal
+     .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
+     .children
+     (vec (mapcat (fn [item]
+                    (cons (toc-tile item)
+                          (map toc-tile (.-children item))))
+                  items)))))
