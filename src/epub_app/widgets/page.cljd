@@ -45,7 +45,9 @@
      .annotations anns
      .selection (:selection state)
      .highlight (:highlight state)
-     .onBlockLongPress (fn [block] (core/select-block! block))
+     .onTextSelect (fn [block start end text]
+                     (core/select-span! block start end text)
+                     nil)
      .onLinkTap (fn [href note?] (core/open-link! href note?) nil))))
 
 (defn- on-page-changed [i]

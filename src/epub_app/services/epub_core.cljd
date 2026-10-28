@@ -382,17 +382,20 @@
   (store/set-ui! :search-visible false)
   (go-to-position! (.-position hit)))
 
-(defn select-block! [^epub/MglBlock block]
+(defn select-span! [^epub/MglBlock block start end text]
   (when-let [ch (:chapter @store/app-state)]
-    (store/set-selection!
-     (epub/ReaderSelection.
-      .chapterId (.-id ch)
-      .blockId (.-id block)
-      .startOffset 0
-      .endOffset (.-textLength block)
-      .text (.-plainText block)))
-    (store/set-ui! :menu-visible true)
-    (store/set-ui! :note-visible false)))
+    (let [from (int start)
+          to (int end)]
+      (when (> to from)
+        (store/set-selection!
+         (epub/ReaderSelection.
+          .chapterId (.-id ch)
+          .blockId (.-id block)
+          .startOffset from
+          .endOffset to
+          .text (or text "")))
+        (store/set-ui! :menu-visible true)
+        (store/set-ui! :note-visible false)))))
 
 (defn clear-selection! []
   (store/set-selection! nil)

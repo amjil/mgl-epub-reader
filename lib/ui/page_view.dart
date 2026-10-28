@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:mongol/mongol.dart';
 
@@ -83,7 +84,7 @@ class MglPageView extends StatelessWidget {
     this.highlight,
     this.selection,
     this.annotations = const [],
-    this.onBlockLongPress,
+    this.onTextSelect,
     this.onLinkTap,
   });
 
@@ -94,7 +95,7 @@ class MglPageView extends StatelessWidget {
   final ReaderSelectionRange? highlight;
   final ReaderSelection? selection;
   final List<Annotation> annotations;
-  final void Function(MglBlock block)? onBlockLongPress;
+  final void Function(MglBlock block, int start, int end, String text)? onTextSelect;
   final void Function(String href, bool note)? onLinkTap;
 
   @override
@@ -142,113 +143,67 @@ class MglPageView extends StatelessWidget {
         colors: colors,
       );
     } else {
-      final span = _rich(block);
-      final gap = blockAxisGap(config);
-      child = vertical
-          ? Padding(
-              padding: EdgeInsets.only(right: gap),
-              child: MongolText.rich(
-                span,
-                textAlign: MongolTextAlign.top,
-              ),
-            )
-          : Padding(
-              padding: EdgeInsets.only(bottom: gap),
-              child: Text.rich(span),
-            );
-    }
-    final onPress = onBlockLongPress;
-    final href = _firstHref(block);
-    final linkTap = onLinkTap;
-    Widget wrapped = child;
-    if (onPress != null || (href != null && linkTap != null)) {
-      wrapped = GestureDetector(
-        onLongPress: onPress == null ? null : () => onPress(block),
-        onTap: href == null || linkTap == null
-            ? null
-            : () {
-                final target = href;
-                final tap = linkTap;
-                if (target == null || tap == null) return;
-                tap(target, _linkNote(block, target));
-              },
-        behavior: HitTestBehavior.translucent,
-        child: child,
+      child = _SelectableBlock(
+        block: block,
+        vertical: vertical,
+        gap: blockAxisGap(config),
+        insets: blockInsets(block, config),
+        config: config,
+        colors: colors,
+        marks: _marks(block),
+        onTextSelect: onTextSelect,
+        onLinkTap: onLinkTap,
       );
     }
     final label = block.plainText.trim();
-    if (label.isEmpty) return wrapped;
+    if (label.isEmpty) return child;
     return Semantics(
       label: label,
-      button: href != null,
-      child: wrapped,
+      button: block.spans.any((span) => span.href != null && span.href!.isNotEmpty),
+      child: child,
     );
   }
 
-  bool _linkNote(MglBlock block, String href) {
-    for (final span in block.spans) {
-      if (span.href == href && span.note) return true;
-    }
-    return false;
-  }
-
-  String? _firstHref(MglBlock block) {
-    for (final span in block.spans) {
-      if (span.href != null && span.href!.isNotEmpty) return span.href;
-    }
-    return block.href;
-  }
-
-  TextSpan _rich(MglBlock block) {
-    final children = <InlineSpan>[];
-    for (final span in block.spans) {
-      final style = _style(span, block);
-      children.add(TextSpan(text: span.text, style: style));
-    }
-    if (children.isEmpty) {
-      children.add(TextSpan(text: '', style: _style(null, block)));
-    }
-    return TextSpan(children: children);
-  }
-
-  Color? _blockBackground(MglBlock block) {
+  List<_Mark> _marks(MglBlock block) {
     final chapterId = page.start.chapterId;
-    if (_selectionHits(block, chapterId) || _highlightHits(block, chapterId)) {
-      return colors.selection;
-    }
-    for (final a in annotations) {
-      if (annotationAppliesTo(a, chapterId: chapterId, blockId: block.id) &&
-          a.style == AnnotationStyle.highlight) {
-        return _annotationColor(a.color);
-      }
-    }
-    return null;
-  }
-
-  bool _selectionHits(MglBlock block, String chapterId) {
+    final out = <_Mark>[];
     final sel = selection;
-    if (sel == null || sel.blockId != block.id) return false;
-    return sel.chapterId == chapterId;
-  }
-
-  bool _highlightHits(MglBlock block, String chapterId) {
+    if (sel != null &&
+        sel.chapterId == chapterId &&
+        sel.blockId == block.id &&
+        sel.endOffset > sel.startOffset) {
+      out.add(_Mark(
+        start: sel.startOffset,
+        end: sel.endOffset,
+        background: colors.selection,
+      ));
+    }
     final hit = highlight;
-    if (hit == null || hit.blockId != block.id) return false;
-    return hit.chapterId == null || hit.chapterId == chapterId;
-  }
-
-  bool _blockUnderline(MglBlock block) {
-    final chapterId = page.start.chapterId;
-    for (final a in annotations) {
-      if (!annotationAppliesTo(a, chapterId: chapterId, blockId: block.id)) {
+    if (hit != null &&
+        hit.blockId == block.id &&
+        (hit.chapterId == null || hit.chapterId == chapterId) &&
+        hit.end > hit.start) {
+      out.add(_Mark(start: hit.start, end: hit.end, background: colors.selection));
+    }
+    for (final annotation in annotations) {
+      if (!annotationAppliesTo(annotation, chapterId: chapterId, blockId: block.id)) {
         continue;
       }
-      if (a.style == AnnotationStyle.underline ||
-          a.style == AnnotationStyle.note) {
-        return true;
+      final start = annotation.start.blockId == block.id
+          ? annotation.start.offset
+          : block.origin;
+      final end = annotation.end.blockId == block.id
+          ? annotation.end.offset
+          : block.origin + block.textLength;
+      if (end <= start) continue;
+      if (annotation.style == AnnotationStyle.highlight) {
+        out.add(_Mark(start: start, end: end, background: _annotationColor(annotation.color)));
+      } else if (annotation.style == AnnotationStyle.underline ||
+          annotation.style == AnnotationStyle.note) {
+        out.add(_Mark(start: start, end: end, underline: true));
       }
     }
-    return false;
+    return out;
   }
 
   Color _annotationColor(String name) {
@@ -259,20 +214,305 @@ class MglPageView extends StatelessWidget {
       _ => colors.selection,
     };
   }
+}
 
-  TextStyle _style(MglTextSpan? span, MglBlock block) {
-    Color color = colors.foreground;
-    if (span?.href != null) color = colors.link;
-    if (block.type == MglBlockType.quote) color = colors.secondary;
+class _Mark {
+  const _Mark({
+    required this.start,
+    required this.end,
+    this.background,
+    this.underline = false,
+  });
+
+  final int start;
+  final int end;
+  final Color? background;
+  final bool underline;
+}
+
+class _SelectableBlock extends StatefulWidget {
+  const _SelectableBlock({
+    required this.block,
+    required this.vertical,
+    required this.gap,
+    required this.insets,
+    required this.config,
+    required this.colors,
+    required this.marks,
+    required this.onTextSelect,
+    required this.onLinkTap,
+  });
+
+  final MglBlock block;
+  final bool vertical;
+  final double gap;
+  final EdgeInsets insets;
+  final ReaderLayoutConfig config;
+  final ReaderThemeColors colors;
+  final List<_Mark> marks;
+  final void Function(MglBlock block, int start, int end, String text)? onTextSelect;
+  final void Function(String href, bool note)? onLinkTap;
+
+  @override
+  State<_SelectableBlock> createState() => _SelectableBlockState();
+}
+
+class _SelectableBlockState extends State<_SelectableBlock> {
+  final Map<String, TapGestureRecognizer> _recognizers = {};
+  int? _anchorStart;
+  int? _anchorEnd;
+
+  @override
+  void dispose() {
+    for (final recognizer in _recognizers.values) {
+      recognizer.dispose();
+    }
+    super.dispose();
+  }
+
+  TapGestureRecognizer? _recognizerFor(String? href, bool note) {
+    final link = href;
+    final tap = widget.onLinkTap;
+    if (link == null || link.isEmpty || tap == null) return null;
+    final recognizer = _recognizers.putIfAbsent(link, TapGestureRecognizer.new);
+    recognizer.onTap = () => tap(link, note);
+    return recognizer;
+  }
+
+  EdgeInsets get _pad => EdgeInsets.fromLTRB(
+        widget.insets.left,
+        widget.insets.top,
+        widget.insets.right + (widget.vertical ? widget.gap : 0),
+        widget.insets.bottom + (widget.vertical ? 0 : widget.gap),
+      );
+
+  TextSpan _span({bool recognizers = false}) {
+    final block = widget.block;
+    final children = <InlineSpan>[];
+    var cursor = block.origin;
+    for (final span in block.spans) {
+      final end = cursor + span.text.length;
+      children.addAll(_pieces(span, cursor, end, recognizers: recognizers));
+      cursor = end;
+    }
+    if (children.isEmpty) {
+      children.add(TextSpan(text: '', style: _style(null, 0, 0)));
+    }
+    return TextSpan(children: children);
+  }
+
+  List<InlineSpan> _pieces(
+    MglTextSpan span,
+    int start,
+    int end, {
+    required bool recognizers,
+  }) {
+    if (end <= start) return const [];
+    final cuts = <int>{start, end};
+    for (final mark in widget.marks) {
+      if (mark.end <= start || mark.start >= end) continue;
+      cuts.add(_clampInt(mark.start, start, end));
+      cuts.add(_clampInt(mark.end, start, end));
+    }
+    final points = cuts.toList()..sort();
+    final recognizer = recognizers ? _recognizerFor(span.href, span.note) : null;
+    final out = <InlineSpan>[];
+    for (var i = 0; i < points.length - 1; i++) {
+      final a = points[i];
+      final b = points[i + 1];
+      if (b <= a) continue;
+      out.add(TextSpan(
+        text: span.text.substring(a - start, b - start),
+        style: _style(span, a, b),
+        recognizer: recognizer,
+      ));
+    }
+    return out;
+  }
+
+  TextStyle _style(MglTextSpan? span, int start, int end) {
+    Color color = widget.colors.foreground;
+    if (span?.href != null) color = widget.colors.link;
+    if (widget.block.type == MglBlockType.quote) color = widget.colors.secondary;
+    Color? background;
+    var underline = false;
+    for (final mark in widget.marks) {
+      if (mark.end <= start || mark.start >= end) continue;
+      if (mark.background != null) background = mark.background;
+      if (mark.underline) underline = true;
+    }
     return blockTextStyle(
-      block,
-      config,
+      widget.block,
+      widget.config,
       span: span,
       color: color,
-      backgroundColor: _blockBackground(block),
-      extraUnderline: _blockUnderline(block),
+      backgroundColor: background,
+      extraUnderline: underline,
     );
   }
+
+  int? _offsetAt(Offset local, Size size) {
+    final plain = widget.block.plainText;
+    if (plain.isEmpty) return null;
+    final pad = _pad;
+    final width = size.width - pad.horizontal;
+    final height = size.height - pad.vertical;
+    if (width <= 0 || height <= 0) return null;
+    final point = Offset(
+      _clampDouble(local.dx - pad.left, 0, width),
+      _clampDouble(local.dy - pad.top, 0, height),
+    );
+    if (local.dx < pad.left - 8 ||
+        local.dy < pad.top - 8 ||
+        local.dx > size.width - (widget.vertical ? widget.gap : pad.right) + 8 ||
+        local.dy > size.height - (widget.vertical ? pad.bottom : widget.gap) + 8) {
+      return null;
+    }
+    final text = _span();
+    if (widget.vertical) {
+      final painter = MongolTextPainter(
+        text: text,
+        textAlign: blockMongolAlign(widget.block),
+      );
+      try {
+        painter.layout(maxHeight: height);
+        return _bound(painter.getPositionForOffset(point).offset, plain.length);
+      } finally {
+        painter.dispose();
+      }
+    }
+    final painter = TextPainter(
+      text: text,
+      textAlign: blockTextAlign(widget.block),
+      textDirection: widget.config.readingDirection == ReadingDirection.rightToLeft
+          ? TextDirection.rtl
+          : TextDirection.ltr,
+    );
+    try {
+      painter.layout(maxWidth: width);
+      return _bound(painter.getPositionForOffset(point).offset, plain.length);
+    } finally {
+      painter.dispose();
+    }
+  }
+
+  void _emit(int localStart, int localEnd) {
+    final select = widget.onTextSelect;
+    if (select == null) return;
+    final plain = widget.block.plainText;
+    final start = _bound(localStart < localEnd ? localStart : localEnd, plain.length);
+    var end = _bound(localStart < localEnd ? localEnd : localStart, plain.length);
+    if (end == start) {
+      if (start >= plain.length) return;
+      end = start + 1;
+    }
+    select(
+      widget.block,
+      widget.block.origin + start,
+      widget.block.origin + end,
+      plain.substring(start, end),
+    );
+  }
+
+  void _begin(Offset local, Size size) {
+    final offset = _offsetAt(local, size);
+    if (offset == null) return;
+    final token = _tokenAt(widget.block.plainText, offset);
+    _anchorStart = token.start;
+    _anchorEnd = token.end;
+    _emit(token.start, token.end);
+  }
+
+  void _extend(Offset local, Size size) {
+    final anchorStart = _anchorStart;
+    final anchorEnd = _anchorEnd;
+    final offset = _offsetAt(local, size);
+    if (anchorStart == null || anchorEnd == null || offset == null) return;
+    final start = offset < anchorStart ? offset : anchorStart;
+    final end = offset + 1 > anchorEnd ? offset + 1 : anchorEnd;
+    _emit(start, end);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final span = _span(recognizers: true);
+    final child = widget.vertical
+        ? MongolText.rich(span, textAlign: blockMongolAlign(widget.block))
+        : Text.rich(
+            span,
+            textAlign: blockTextAlign(widget.block),
+          );
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onLongPressStart: (details) {
+        final box = context.findRenderObject();
+        if (box is! RenderBox || !box.hasSize) return;
+        _begin(details.localPosition, box.size);
+      },
+      onLongPressMoveUpdate: (details) {
+        final box = context.findRenderObject();
+        if (box is! RenderBox || !box.hasSize) return;
+        _extend(details.localPosition, box.size);
+      },
+      child: Padding(padding: _pad, child: child),
+    );
+  }
+}
+
+int _bound(int value, int max) {
+  if (value < 0) return 0;
+  if (value > max) return max;
+  return value;
+}
+
+int _clampInt(int value, int min, int max) {
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
+double _clampDouble(double value, double min, double max) {
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
+/// Long-press token. Spaces and Mongolian punctuation split tokens.
+/// A spaceless run is capped so the whole paragraph is not selected at once.
+TextRange _tokenAt(String text, int offset) {
+  if (text.isEmpty) return const TextRange(start: 0, end: 0);
+  final index = _bound(offset, text.length - 1);
+  bool isBreak(int i) {
+    if (i < 0 || i >= text.length) return true;
+    final code = text.codeUnitAt(i);
+    return code == 0x20 ||
+        code == 0x0a ||
+        code == 0x09 ||
+        code == 0x3000 ||
+        code == 0x2c ||
+        code == 0x2e ||
+        code == 0x3b ||
+        (code >= 0x1800 && code <= 0x180A);
+  }
+
+  var start = index;
+  var end = index + 1;
+  if (!isBreak(index)) {
+    while (start > 0 && !isBreak(start - 1)) {
+      start--;
+    }
+    while (end < text.length && !isBreak(end)) {
+      end++;
+    }
+  }
+  const cap = 24;
+  if (end - start > cap) {
+    start = index - cap ~/ 2;
+    if (start < 0) start = 0;
+    end = start + cap;
+    if (end > text.length) end = text.length;
+  }
+  return TextRange(start: start, end: end);
 }
 
 class ReaderViewport extends StatelessWidget {
@@ -290,7 +530,8 @@ class ReaderViewport extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (pages.isEmpty) return const SizedBox.expand();
-    final i = index.clamp(0, pages.length - 1);
+    final last = pages.length - 1;
+    final i = index < 0 ? 0 : (index > last ? last : index);
     return Stack(
       fit: StackFit.expand,
       children: [

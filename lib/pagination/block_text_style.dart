@@ -1,4 +1,5 @@
 import 'package:flutter/painting.dart';
+import 'package:mongol/mongol.dart';
 
 import '../model/document.dart';
 import '../model/position.dart';
@@ -12,6 +13,64 @@ double headingScale(int? level) {
     5 => 1.0,
     6 => 0.95,
     _ => 1.0,
+  };
+}
+
+/// CSS margins, padding, and text-indent as padding around the block.
+///
+/// Lengths are already in pixels. Each edge is capped so a stylesheet cannot
+/// push the column off the page. Vertical text indents from the top of the
+/// column; horizontal text indents from the line start.
+EdgeInsets blockInsets(MglBlock block, ReaderLayoutConfig config) {
+  final style = block.style;
+  if (style == null) return EdgeInsets.zero;
+  double px(double? value) {
+    if (value == null || value.isNaN || value <= 0) return 0;
+    return value > 64 ? 64 : value;
+  }
+
+  final indent = px(style.textIndent);
+  final top = px(style.marginTop) + px(style.paddingTop);
+  final bottom = px(style.marginBottom) + px(style.paddingBottom);
+  final start = px(style.marginStart);
+  final end = px(style.marginEnd);
+  final vertical = config.writingMode == WritingMode.vertical;
+  if (vertical) {
+    return EdgeInsets.only(
+      top: top + indent,
+      bottom: bottom,
+      left: start,
+      right: end,
+    );
+  }
+  final rtl = config.readingDirection == ReadingDirection.rightToLeft;
+  return EdgeInsets.only(
+    top: top,
+    bottom: bottom,
+    left: start + (rtl ? 0 : indent),
+    right: end + (rtl ? indent : 0),
+  );
+}
+
+/// CSS `text-align` for horizontal lines. Unset and `start` follow direction.
+TextAlign blockTextAlign(MglBlock block) {
+  return switch (block.style?.textAlign) {
+    'center' => TextAlign.center,
+    'right' => TextAlign.right,
+    'end' => TextAlign.end,
+    'justify' => TextAlign.justify,
+    'left' => TextAlign.left,
+    _ => TextAlign.start,
+  };
+}
+
+/// CSS `text-align` along a vertical column (top is the start of the column).
+MongolTextAlign blockMongolAlign(MglBlock block) {
+  return switch (block.style?.textAlign) {
+    'center' => MongolTextAlign.center,
+    'justify' => MongolTextAlign.justify,
+    'right' || 'end' || 'bottom' => MongolTextAlign.bottom,
+    _ => MongolTextAlign.top,
   };
 }
 
