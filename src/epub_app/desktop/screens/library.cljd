@@ -70,7 +70,9 @@
             .children (filterv some? [title-block progress-block])))
           (ui/gap-h 10)
           (ui/v-progress progress)
-          (books/book-menu ctx book)])
+          (m/Align
+           .alignment m.Alignment/topCenter
+           .child (books/book-menu ctx book))])
         :width 260.0
         :elevated? hover?
         :padding 16.0
