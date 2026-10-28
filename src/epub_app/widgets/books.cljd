@@ -148,10 +148,11 @@
      .icon (m/Icon m.Icons/delete_outline .color (t/ink-muted) .size 18.0))]))
 
 (defn show-shelf-picker! [ctx book]
-  (m/showDialog
-   .context ctx
-   .builder
-   (fn [dctx]
+  (do
+    (m/showDialog
+     .context ctx
+     .builder
+     (fn [dctx]
      (f/widget
       :watch [state store/app-state]
       (let [shelves (or (:shelves state) [])
@@ -189,8 +190,8 @@
          .actions
          [(m/TextButton
            .onPressed (fn [] (.pop (m/Navigator.of dctx)) nil)
-           .child (m/Text "Close"))]))))
-  nil))
+           .child (m/Text "Close"))])))))
+    nil))
 
 (defn- book-menu-items [ctx book]
   [{:type :item
