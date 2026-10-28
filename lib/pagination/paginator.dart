@@ -222,16 +222,26 @@ double _extentOf(MglBlock block, ReaderLayoutConfig config) {
     final painter = MongolTextPainter(
       text: _spanFor(block, config),
       textAlign: MongolTextAlign.top,
-    )..layout(maxHeight: config.contentSize.height);
-    return painter.width + blockAxisGap(config);
+    );
+    try {
+      painter.layout(maxHeight: config.contentSize.height);
+      return painter.width + blockAxisGap(config);
+    } finally {
+      painter.dispose();
+    }
   }
   final painter = TextPainter(
     text: _spanFor(block, config),
     textDirection: config.readingDirection == ReadingDirection.rightToLeft
         ? TextDirection.rtl
         : TextDirection.ltr,
-  )..layout(maxWidth: config.contentSize.width);
-  return painter.height + blockAxisGap(config);
+  );
+  try {
+    painter.layout(maxWidth: config.contentSize.width);
+    return painter.height + blockAxisGap(config);
+  } finally {
+    painter.dispose();
+  }
 }
 
 _Split? _split(_Item item, ReaderLayoutConfig config, double remaining) {

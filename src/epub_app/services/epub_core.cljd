@@ -57,32 +57,40 @@
       (throw (Exception. (picker-fail-msg "dialog returned immediately"))))
     file))
 
+(defonce !picking (atom false))
+
 (defn pick-and-import! []
-  (dart:core/print "pick-and-import!")
-  (store/clear-error!)
-  (try
-    (let [file (await (pick-epub-file))]
-      (when file
-        (store/set-status! :loading-book)
-        (try
-          (let [bytes (await (.readAsBytes file))
-                row (await (.importBytes (bridge) bytes))]
-            (await (refresh-library!))
-            (store/set-status! :idle)
-            row)
-          (catch Object e
-            (store/set-error! (str e))
+  (if @!picking
+    nil
+    (do
+      (reset! !picking true)
+      (dart:core/print "pick-and-import!")
+      (store/clear-error!)
+      (try
+        (let [file (await (pick-epub-file))]
+          (when file
+            (store/set-status! :loading-book)
+            (try
+              (let [bytes (await (.readAsBytes file))
+                    row (await (.importBytes (bridge) bytes))]
+                (await (refresh-library!))
+                (store/set-status! :idle)
+                row)
+              (catch Object e
+                (store/set-error! (str e))
+                (store/set-status! :error)
+                nil))))
+        (catch Object e
+          (let [raw (str e)
+                msg (if (.contains raw "Could not open the file picker")
+                      raw
+                      (picker-fail-msg e))]
+            (dart:core/print (str "pick-and-import! failed: " msg))
+            (store/set-error! msg)
             (store/set-status! :error)
-            nil))))
-    (catch Object e
-      (let [raw (str e)
-            msg (if (.contains raw "Could not open the file picker")
-                  raw
-                  (picker-fail-msg e))]
-        (dart:core/print (str "pick-and-import! failed: " msg))
-        (store/set-error! msg)
-        (store/set-status! :error)
-        nil))))
+            nil))
+        (finally
+          (reset! !picking false))))))
 
 (defn- page-index-for [pages position]
   (if (or (nil? position) (empty? pages))
