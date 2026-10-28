@@ -186,7 +186,11 @@ double? _parseFontSize(String? raw) {
 double? _parseLength(String? raw) {
   if (raw == null) return null;
   final first = raw.split(RegExp(r'\s+')).first;
-  return double.tryParse(first.replaceAll(RegExp(r'[a-z%]+'), ''));
+  if (first.endsWith('%')) return null;
+  final n = double.tryParse(first.replaceAll(RegExp(r'[a-z%]+'), ''));
+  if (n == null) return null;
+  if (first.endsWith('em') || first.endsWith('rem')) return 16 * n;
+  return n;
 }
 
 double? _parseLineHeight(String? raw) {

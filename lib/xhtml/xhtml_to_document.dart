@@ -385,20 +385,71 @@ class XhtmlToDocument {
   }
 
   List<MglBlock> _table(html_dom.Element table) {
-    final rows = table.querySelectorAll('tr');
     final blocks = <MglBlock>[];
-    for (final row in rows) {
-      final cells = row.querySelectorAll('th,td');
-      final text = cells.map((c) => c.text.trim()).where((t) => t.isNotEmpty).join(' · ');
-      if (text.isEmpty) continue;
-      final rowBlock = MglBlock.paragraph(
-        id: _blockId(row),
-        spans: [MglTextSpan(text: text)],
-      );
-      _finishBlock(row, rowBlock);
-      blocks.add(rowBlock);
+    for (final child in table.children) {
+      final tag = (child.localName ?? '').toLowerCase();
+      if (tag != 'caption') continue;
+      final caption = _cellParagraph(child, tag);
+      if (caption != null) blocks.add(caption);
     }
+    for (final row in _tableRows(table)) {
+      final rowBlocks = <MglBlock>[];
+      for (final cell in row.children) {
+        final tag = (cell.localName ?? '').toLowerCase();
+        if (tag != 'th' && tag != 'td') continue;
+        final cellBlock = _cellParagraph(cell, tag);
+        if (cellBlock != null) rowBlocks.add(cellBlock);
+        _appendNestedTables(cell, rowBlocks);
+      }
+      if (rowBlocks.isEmpty) continue;
+      if (blocks.isNotEmpty) {
+        blocks.add(MglBlock.horizontalRule(id: _nextId()));
+      }
+      _attachContainer(row, rowBlocks);
+      blocks.addAll(rowBlocks);
+    }
+    _attachContainer(table, blocks);
     return blocks;
+  }
+
+  MglBlock? _cellParagraph(html_dom.Element cell, String tag) {
+    final css = _cssFor(cell, tag);
+    final spans = _inlines(cell, _tagStyle(tag, css));
+    if (spans.isEmpty || spans.every((s) => s.text.trim().isEmpty)) return null;
+    final block = MglBlock.paragraph(
+      id: _blockId(cell),
+      spans: spans,
+      style: blockStyleFromCss(css),
+    );
+    _finishBlock(cell, block);
+    return block;
+  }
+
+  void _appendNestedTables(html_dom.Element node, List<MglBlock> into) {
+    for (final child in node.children) {
+      final tag = (child.localName ?? '').toLowerCase();
+      if (tag == 'table') {
+        into.addAll(_table(child));
+      } else if (tag != 'th' && tag != 'td') {
+        _appendNestedTables(child, into);
+      }
+    }
+  }
+
+  /// Direct rows only, so a nested table is not flattened into its parent.
+  List<html_dom.Element> _tableRows(html_dom.Element table) {
+    final rows = <html_dom.Element>[];
+    for (final child in table.children) {
+      final tag = (child.localName ?? '').toLowerCase();
+      if (tag == 'tr') {
+        rows.add(child);
+      } else if (tag == 'thead' || tag == 'tbody' || tag == 'tfoot') {
+        for (final row in child.children) {
+          if ((row.localName ?? '').toLowerCase() == 'tr') rows.add(row);
+        }
+      }
+    }
+    return rows;
   }
 
   MglBlock? _image(html_dom.Element node) {
@@ -497,6 +548,8 @@ class XhtmlToDocument {
         style = style.merge(const MglTextStyle(italic: true));
       case 'u':
         style = style.merge(const MglTextStyle(underline: true));
+      case 'th':
+        style = style.merge(const MglTextStyle(bold: true));
     }
     return style;
   }

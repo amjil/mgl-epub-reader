@@ -117,6 +117,7 @@ class MglBlock {
     this.ordered = false,
     this.children = const [],
     this.style,
+    this.origin = 0,
   });
 
   factory MglBlock.heading({
@@ -230,6 +231,10 @@ class MglBlock {
   final bool ordered;
   final List<MglBlock> children;
   final MglBlockStyle? style;
+
+  /// Absolute offset of [plainText] index 0 inside the original block.
+  /// Page slices are non-zero; full blocks stay at 0.
+  final int origin;
 
   String get plainText => spans.map((s) => s.text).join();
 

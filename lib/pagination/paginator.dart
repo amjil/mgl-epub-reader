@@ -215,30 +215,35 @@ double _extentOf(MglBlock block, ReaderLayoutConfig config) {
     final scale = w > config.contentSize.width ? config.contentSize.width / w : 1.0;
     return (h * scale) + 16;
   }
+  final insets = blockInsets(block, config);
   if (block.plainText.isEmpty) {
-    return config.fontSize * config.lineHeight;
+    final extra = vertical ? insets.horizontal : insets.vertical;
+    return config.fontSize * config.lineHeight + extra;
   }
   if (vertical) {
     final painter = MongolTextPainter(
       text: _spanFor(block, config),
-      textAlign: MongolTextAlign.top,
+      textAlign: blockMongolAlign(block),
     );
     try {
-      painter.layout(maxHeight: config.contentSize.height);
-      return painter.width + blockAxisGap(config);
+      final maxH = config.contentSize.height - insets.vertical;
+      painter.layout(maxHeight: maxH < config.fontSize ? config.fontSize : maxH);
+      return painter.width + insets.horizontal + blockAxisGap(config);
     } finally {
       painter.dispose();
     }
   }
   final painter = TextPainter(
     text: _spanFor(block, config),
+    textAlign: blockTextAlign(block),
     textDirection: config.readingDirection == ReadingDirection.rightToLeft
         ? TextDirection.rtl
         : TextDirection.ltr,
   );
   try {
-    painter.layout(maxWidth: config.contentSize.width);
-    return painter.height + blockAxisGap(config);
+    final maxW = config.contentSize.width - insets.horizontal;
+    painter.layout(maxWidth: maxW < config.fontSize ? config.fontSize : maxW);
+    return painter.height + insets.vertical + blockAxisGap(config);
   } finally {
     painter.dispose();
   }
@@ -315,6 +320,7 @@ MglBlock _sliceBlock(MglBlock block, int start, int end) {
     ordered: block.ordered,
     children: block.children,
     style: block.style,
+    origin: block.origin + start,
   );
 }
 
