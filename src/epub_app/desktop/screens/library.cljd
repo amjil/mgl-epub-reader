@@ -111,29 +111,32 @@
           .child
           (t/mongol-label label :size 10.0 :color label-color :weight m.FontWeight/w500))])))))))
 
-(defn- library-search-field []
-  (f/widget
-   :managed [ctrl (m/TextEditingController.)]
-   (m/Container
-    .height 156.0
-    .margin (m/EdgeInsets.only .bottom 8.0)
-    .padding (m/EdgeInsets.symmetric .horizontal 4.0 .vertical 6.0)
-    .decoration (m/BoxDecoration
-                 .color (t/surface-2)
-                 .borderRadius (m/BorderRadius.circular t/radius-m)
-                 .border (m/Border.all .color (t/outline) .width 1.0))
-    .child
-    (mgl/MongolTextField
-     .controller ctrl
-     .maxLines 1
-     .style (t/mongol-style :size 13.0)
-     .decoration (m/InputDecoration
-                  .hintText "Search"
-                  .isCollapsed true
-                  .contentPadding (m/EdgeInsets.symmetric .horizontal 4.0 .vertical 6.0)
-                  .border m.InputBorder/none
-                  .hintStyle (t/mongol-style :size 13.0 :color (t/ink-faint)))
-     .onChanged (fn [txt] (store/set-library-search! (or txt "")) nil)))))
+(defn- close-library-filter! []
+  (store/set-ui! :library-filter-visible false))
+
+(defn- open-library-filter! []
+  (store/set-ui! :settings-visible false)
+  (store/set-ui! :library-filter-visible true))
+
+(defn- toggle-library-filter! []
+  (if (get-in @store/app-state [:ui :library-filter-visible])
+    (close-library-filter!)
+    (open-library-filter!))
+  nil)
+
+(defn- library-filter-btn [state]
+  (let [open? (get-in state [:ui :library-filter-visible])
+        active? (or open? (seq (or (:library-search-query state) "")))]
+    (m/Padding
+     .padding (m/EdgeInsets.only .bottom 8.0)
+     .child
+     (rail-action-btn {:bg (if active? (t/fade t/primary 0.14) (t/surface-2))
+                       :icon m.Icons/search_rounded
+                       :icon-color (if active? t/primary (t/ink-muted))
+                       :label "ᠬᠠᠶᠢᠯᠲᠠ"
+                       :label-color (if active? t/primary (t/ink-muted))
+                       :shadow? false
+                       :on-tap toggle-library-filter!}))))
 
 (defn- import-rail-btn []
   (rail-action-btn {:bg t/primary
@@ -186,7 +189,7 @@
        (m/Column
         .mainAxisSize m.MainAxisSize/min
         .children
-        [(library-search-field)
+        [(library-filter-btn state)
          (books/filter-rail (:library-filter state))])))
      (m/Padding
       .padding (m/EdgeInsets.fromLTRB 10.0 6.0 10.0 16.0)
@@ -203,7 +206,10 @@
                           :label "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ"
                           :label-color (t/ink-muted)
                           :shadow? false
-                          :on-tap (fn [] (store/toggle-ui! :settings-visible))})]))])))
+                          :on-tap (fn []
+                                   (store/set-ui! :library-filter-visible false)
+                                   (store/toggle-ui! :settings-visible)
+                                   nil)})]))])))
 
 ;; Empty library state — scrollable so it never overflows on short windows.
 ;; LayoutBuilder + SingleChildScrollView + ConstrainedBox(minHeight) keeps the
@@ -271,6 +277,101 @@
 
 (defn- close-settings! []
   (store/set-ui! :settings-visible false))
+
+(defn- library-filter-body []
+  (f/widget
+   :managed [ctrl (m/TextEditingController.
+                   .text (or (:library-search-query @store/app-state) ""))]
+   (m/Row
+    .crossAxisAlignment m.CrossAxisAlignment/stretch
+    .children
+    [(m/Container
+      .width 44.0
+      .decoration (m/BoxDecoration
+                   .border (m/Border
+                            .right (m/BorderSide .color (t/outline) .width 1.0)))
+      .child
+      (m/Column
+       .children
+       [(ui/icon-btn m.Icons/close_rounded
+                     (fn [] (close-library-filter!) nil)
+                     :size 18.0
+                     :tooltip "Close")
+        (m/Expanded
+         .child
+         (m/Center
+          .child
+          (t/mongol-label "ᠬᠠᠶᠢᠯᠲᠠ"
+                          :size 15.0 :weight m.FontWeight/bold)))]))
+     (m/Expanded
+      .child
+      (m/Padding
+       .padding (m/EdgeInsets.fromLTRB 16.0 16.0 16.0 12.0)
+       .child
+       (m/Column
+        .crossAxisAlignment m.CrossAxisAlignment/stretch
+        .children
+        [(m/Expanded
+          .child
+          (m/Container
+           .decoration (m/BoxDecoration
+                        .color (t/surface-2)
+                        .borderRadius (m/BorderRadius.circular t/radius-m)
+                        .border (m/Border.all .color (t/outline) .width 1.0))
+           .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 10.0)
+           .child
+           (mgl/MongolTextField
+            .controller ctrl
+            .maxLines 1
+            .autofocus true
+            .style (t/mongol-style :size 16.0)
+            .decoration (m/InputDecoration
+                         .hintText "Title or author"
+                         .isCollapsed true
+                         .border m.InputBorder/none
+                         .hintStyle (t/mongol-style :size 16.0 :color (t/ink-faint)))
+            .onChanged (fn [txt] (store/set-library-search! (or txt "")) nil))))
+         (ui/gap-v 8)
+         (m/Align
+          .alignment m.Alignment/centerRight
+          .child
+          (m/TextButton
+           .onPressed (fn []
+                        (.clear ctrl)
+                        (store/set-library-search! "")
+                        nil)
+           .child (ui/text "Clear" {:size 13.0 :color t/primary})))]))))]))
+
+(defn- library-filter-modal []
+  (m/Positioned
+   .left 0.0 .top 0.0 .right 0.0 .bottom 0.0
+   .child
+   (m/Stack
+    .children
+    [(m/ModalBarrier
+      .color (t/fade (t/ink) 0.42)
+      .dismissible true
+      .onDismiss (fn [] (close-library-filter!) nil))
+     (m/LayoutBuilder
+      .builder
+      (fn [_ constraints]
+        (let [max-w (max 240.0 (- (.-maxWidth constraints) 48.0))
+              max-h (max 220.0 (- (.-maxHeight constraints) 48.0))]
+          (m/Center
+           .child
+           (m/Material
+            .color m.Colors/transparent
+            .child
+            (m/Container
+             .width (min 360.0 max-w)
+             .height (min 420.0 max-h)
+             .decoration (m/BoxDecoration
+                          .color (t/surface)
+                          .borderRadius (m/BorderRadius.circular t/radius-l)
+                          .border (m/Border.all .color (t/outline) .width 1.0)
+                          .boxShadow t/shadow-lg)
+             .clipBehavior m.Clip/antiAlias
+             .child (library-filter-body)))))))])))
 
 ;; Settings dialog body: left vertical rail (close + Mongolian title) | content.
 (defn- settings-dialog-body [settings]
@@ -340,7 +441,9 @@
    :context ctx
    (shortcuts/with-shortcuts
     {(shortcuts/cmd-key s/LogicalKeyboardKey.keyO)
-     (fn [] (core/pick-and-import!) nil)}
+     (fn [] (core/pick-and-import!) nil)
+     (shortcuts/cmd-key s/LogicalKeyboardKey.keyF)
+     toggle-library-filter!}
     (dd/DropTarget
      .onDragDone (fn [detail]
                    (core/import-dropped! (.-files detail))
@@ -404,4 +507,7 @@
            (m/SizedBox.shrink))
          (if (get-in state [:ui :settings-visible])
            (settings-modal (:settings state))
+           (m/SizedBox.shrink))
+         (if (get-in state [:ui :library-filter-visible])
+           (library-filter-modal)
            (m/SizedBox.shrink))]))))))))
