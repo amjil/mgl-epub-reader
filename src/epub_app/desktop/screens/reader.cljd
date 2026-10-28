@@ -200,6 +200,7 @@
             [(chrome/left-rail (:book state) ui-state)
              (m/Expanded .child (reading-area state))
              (chrome/right-rail state)])
+           (panels/search-stepper)
            (panels/overlay state)
            (link-preview/layer
             (:link-preview state)

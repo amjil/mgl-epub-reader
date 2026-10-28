@@ -1,6 +1,7 @@
 (ns epub-app.desktop.screens.library
   "Desktop library interface - modern design with Traditional Mongolian support"
-  (:require             ["package:flutter/material.dart" :as m]
+  (:require             ["package:desktop_drop/desktop_drop.dart" :as dd]
+            ["package:flutter/material.dart" :as m]
             ["package:flutter/services.dart" :as s]
             ["package:mongol/mongol.dart" :as mgl]
             [cljd.flutter :as f]
@@ -340,7 +341,12 @@
    (shortcuts/with-shortcuts
     {(shortcuts/cmd-key s/LogicalKeyboardKey.keyO)
      (fn [] (core/pick-and-import!) nil)}
-    (m/Focus
+    (dd/DropTarget
+     .onDragDone (fn [detail]
+                   (core/import-dropped! (.-files detail))
+                   nil)
+     .child
+     (m/Focus
      .autofocus true
      .child
      (m/Scaffold
@@ -398,4 +404,4 @@
            (m/SizedBox.shrink))
          (if (get-in state [:ui :settings-visible])
            (settings-modal (:settings state))
-           (m/SizedBox.shrink))])))))))
+           (m/SizedBox.shrink))]))))))))

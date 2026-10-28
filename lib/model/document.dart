@@ -55,12 +55,16 @@ class DocAnchor {
     required this.blockId,
     required this.text,
     required this.length,
+    this.spans = const [],
   });
 
   /// Leaf block to scroll to. Empty when the target is not in the page flow.
   final String blockId;
   final String text;
   final int length;
+
+  /// Inline pieces of [text], including hrefs inside a note.
+  final List<MglTextSpan> spans;
 }
 
 class MglBlockStyle {

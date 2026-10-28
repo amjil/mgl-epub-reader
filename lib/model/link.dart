@@ -1,3 +1,5 @@
+import 'document.dart';
+
 /// Where an activated EPUB hyperlink should go.
 class LinkResolution {
   const LinkResolution({
@@ -6,6 +8,7 @@ class LinkResolution {
     this.text,
     this.chapterId,
     this.blockId,
+    this.spans = const [],
   });
 
   /// `external` opens the system browser. `note` is a short preview.
@@ -15,4 +18,5 @@ class LinkResolution {
   final String? text;
   final String? chapterId;
   final String? blockId;
+  final List<MglTextSpan> spans;
 }

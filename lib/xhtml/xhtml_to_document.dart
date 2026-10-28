@@ -53,7 +53,12 @@ class XhtmlToDocument {
     );
   }
 
-  void _noteAnchor(String id, String blockId, String raw) {
+  void _noteAnchor(
+    String id,
+    String blockId,
+    String raw, [
+    List<MglTextSpan> spans = const [],
+  ]) {
     final key = id.trim();
     if (key.isEmpty || _anchors.containsKey(key)) return;
     final trimmed = raw.trim();
@@ -64,13 +69,38 @@ class XhtmlToDocument {
       blockId: blockId,
       text: shown,
       length: trimmed.length,
+      spans: _clipSpans(spans, _maxAnchorChars),
     );
+  }
+
+  List<MglTextSpan> _clipSpans(List<MglTextSpan> spans, int maxChars) {
+    if (spans.isEmpty || maxChars <= 0) return const [];
+    final out = <MglTextSpan>[];
+    var left = maxChars;
+    for (final span in spans) {
+      if (left <= 0) break;
+      if (span.text.length <= left) {
+        out.add(span);
+        left -= span.text.length;
+      } else {
+        out.add(MglTextSpan(
+          text: span.text.substring(0, left),
+          style: span.style,
+          href: span.href,
+          note: span.note,
+        ));
+        left = 0;
+      }
+    }
+    return out;
   }
 
   void _finishBlock(html_dom.Element? node, MglBlock block) {
     if (node != null) {
       final id = _namedId(node);
-      if (id.isNotEmpty) _noteAnchor(id, block.id, block.plainText);
+      if (id.isNotEmpty) {
+        _noteAnchor(id, block.id, block.plainText, block.spans);
+      }
     }
     for (final mark in _inlineMarks) {
       _noteAnchor(mark.id, block.id, mark.text);
@@ -91,7 +121,7 @@ class XhtmlToDocument {
         .map((b) => b.plainText)
         .where((t) => t.trim().isNotEmpty)
         .join('\n');
-    _noteAnchor(id, leaf.id, text);
+    _noteAnchor(id, leaf.id, text, leaf.spans);
   }
 
   MglBlock? _firstLeaf(List<MglBlock> blocks) {
@@ -109,8 +139,11 @@ class XhtmlToDocument {
   void _captureHidden(html_dom.Element node) {
     final id = _namedId(node);
     if (id.isNotEmpty) {
-      final text = node.text.replaceAll(RegExp(r'\s+'), ' ');
-      _noteAnchor(id, '', text);
+      final spans = _inlines(node, MglTextStyle.empty);
+      final text = spans.isEmpty
+          ? node.text.replaceAll(RegExp(r'\s+'), ' ')
+          : spans.map((s) => s.text).join();
+      _noteAnchor(id, '', text, spans);
     }
     for (final child in node.children) {
       _captureHidden(child);

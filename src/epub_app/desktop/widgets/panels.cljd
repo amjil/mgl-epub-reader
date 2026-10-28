@@ -2,6 +2,7 @@
   "Reader overlays: search, contents, bookmarks, notes, settings."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
+            [cljd.flutter :as f]
             [epub-app.desktop.widgets.toc :as toc]
             [epub-app.reader-settings :as rs]
             [epub-app.services.epub-core :as core]
@@ -23,47 +24,109 @@
                       :group-config desktop-group-config
                       :wheel-horizontal? true))
 
-(defn- hit-tile [hit]
+(defn- hit-tile [idx hit]
   (mgl/MongolListTile
    .title (ui/text (.-snippet hit) {:size 13.0 :max-lines 2})
-   .onTap (fn [] (core/go-to-search-hit! hit) nil)))
+   .onTap (fn [] (core/go-to-search-hit! hit idx) nil)))
 
-(defn- search-body [results]
-  (m/Row
-   .children
-   [(m/SizedBox
-     .width 72.0
-     .child
-     (m/Padding
-      .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 10.0)
-      .child
-      (mgl/MongolTextField
-       .autofocus true
-       .decoration (m/InputDecoration
-                    .hintText "Search"
-                    .border m.InputBorder/none
-                    .hintStyle (t/mongol-style :size 13.0 :color (t/ink-faint)))
-       .style (t/mongol-style :size 13.0)
-       .onSubmitted (fn [q] (core/search! q)))))
-    (m/Expanded
-     .child
-     (m/ListView
-      .scrollDirection m.Axis/horizontal
-      .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
-      .children (vec (map hit-tile results))))]))
+(defn- search-body [state]
+  (let [results (:search-results state)
+        n (count results)
+        idx (or (:search-hit-index state) -1)]
+    (m/Row
+     .children
+     [(m/SizedBox
+       .width 88.0
+       .child
+       (m/Padding
+        .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 10.0)
+        .child
+        (m/Column
+         .children
+         [(m/Expanded
+           .child
+           (mgl/MongolTextField
+            .autofocus true
+            .decoration (m/InputDecoration
+                         .hintText "Search"
+                         .border m.InputBorder/none
+                         .hintStyle (t/mongol-style :size 13.0 :color (t/ink-faint)))
+            .style (t/mongol-style :size 13.0)
+            .onSubmitted (fn [q] (core/search! q) nil)))
+          (ui/text (if (pos? n)
+                     (str (if (neg? idx) 0 (inc idx)) " / " n)
+                     "")
+                   {:size 12.0 :color (t/ink-muted)})
+          (m/Row
+           .mainAxisSize m.MainAxisSize/min
+           .children
+           [(ui/icon-btn m.Icons/chevron_left
+                         (fn [] (core/step-search! -1))
+                         :tooltip "Previous match"
+                         :size 18.0)
+            (ui/icon-btn m.Icons/chevron_right
+                         (fn [] (core/step-search! 1))
+                         :tooltip "Next match"
+                         :size 18.0)])])))
+      (m/Expanded
+       .child
+       (if (empty? results)
+         (ui/empty-state m.Icons/search_off
+                         (if (:search-busy state) "Searching…" "No matches"))
+         (m/ListView
+          .scrollDirection m.Axis/horizontal
+          .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
+          .children (vec (map-indexed hit-tile results)))))])))
+
+(defn- rename-bookmark! [ctx bm]
+  (let [ctrl (m/TextEditingController. .text (or (.-title bm) "Bookmark"))]
+    (-> (m/showDialog
+         .context ctx
+         .builder
+         (fn [dctx]
+           (m/AlertDialog
+            .title (m/Text "Rename bookmark")
+            .content (m/TextField
+                      .controller ctrl
+                      .autofocus true
+                      .decoration (m/InputDecoration. .hintText "Name"))
+            .actions
+            [(m/TextButton
+              .onPressed (fn [] (.pop m/Navigator dctx) nil)
+              .child (m/Text "Cancel"))
+             (m/TextButton
+              .onPressed (fn []
+                           (core/rename-bookmark! (.-id bm) (.-text ctrl))
+                           (.pop m/Navigator dctx)
+                           nil)
+              .child (m/Text "Save"))])))
+        (.whenComplete (fn []
+                         (.dispose ctrl)
+                         nil)))
+    nil))
 
 (defn- bookmark-tile [bm]
-  (mgl/MongolListTile
-   .title (ui/text (or (.-title bm) "Bookmark") {:size 13.0 :max-lines 1})
-   .onTap (fn []
-            (store/set-ui! :bookmarks-visible false)
-            (core/go-to-position! (.-position bm))
-            nil)
-   .trailing
-   (m/IconButton
-    .tooltip "Remove bookmark"
-    .icon (m/Icon m.Icons/delete_outline .color t/danger)
-    .onPressed (fn [] (core/remove-bookmark! (.-id bm)) nil))))
+  (m/Builder
+   .builder
+   (fn [ctx]
+     (mgl/MongolListTile
+      .title (ui/text (or (.-title bm) "Bookmark") {:size 13.0 :max-lines 1})
+      .onTap (fn []
+               (store/set-ui! :bookmarks-visible false)
+               (core/go-to-position! (.-position bm))
+               nil)
+      .trailing
+      (m/Row
+       .mainAxisSize m.MainAxisSize/min
+       .children
+       [(m/IconButton
+         .tooltip "Rename bookmark"
+         .icon (m/Icon m.Icons/edit_outlined .color (t/ink-muted))
+         .onPressed (fn [] (rename-bookmark! ctx bm) nil))
+        (m/IconButton
+         .tooltip "Remove bookmark"
+         .icon (m/Icon m.Icons/delete_outline .color t/danger)
+         .onPressed (fn [] (core/remove-bookmark! (.-id bm)) nil))])))))
 
 (defn- bookmarks-body [bookmarks]
   (if (empty? bookmarks)
@@ -87,12 +150,23 @@
     .onPressed (fn [] (core/remove-annotation! (.-id ann)) nil))))
 
 (defn- notes-body [annotations]
-  (if (empty? annotations)
-    (ui/empty-state m.Icons/notes_outlined "No notes")
-    (m/ListView
-     .scrollDirection m.Axis/horizontal
-     .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
-     .children (vec (map note-tile annotations)))))
+  (m/Column
+   .children
+   [(m/Align
+     .alignment m.Alignment/centerLeft
+     .child
+     (m/IconButton
+      .tooltip "Export notes"
+      .icon (m/Icon m.Icons/file_download_outlined .color (t/ink-muted))
+      .onPressed (fn [] (core/export-annotations! nil))))
+    (m/Expanded
+     .child
+     (if (empty? annotations)
+       (ui/empty-state m.Icons/notes_outlined "No notes")
+       (m/ListView
+        .scrollDirection m.Axis/horizontal
+        .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
+        .children (vec (map note-tile annotations)))))]))
 
 (defn- dismiss-panels! []
   (store/hide-panels!))
@@ -106,8 +180,9 @@
    .child
    (m/Column
     .children
-    [(ui/icon-btn m.Icons/close_rounded
+    [     (ui/icon-btn m.Icons/close_rounded
                   (fn [] (dismiss-panels!))
+                  :tooltip "Close"
                   :size 18.0)
      (m/Expanded
       .child
@@ -153,6 +228,51 @@
              .clipBehavior m.Clip/antiAlias
              .child (modal-card label body)))))))])))
 
+(defn search-stepper
+  "Previous and next match, shown once a hit is open."
+  []
+  (f/widget
+   :watch [state store/app-state]
+   (let [results (:search-results state)
+         n (count results)
+         idx (or (:search-hit-index state) -1)
+         ui-state (:ui state)]
+     (if (and (pos? n)
+              (:highlight state)
+              (not (:search-visible ui-state)))
+       (m/Positioned
+        .bottom 88.0
+        .left 72.0
+        .right 72.0
+        .child
+        (m/Center
+         .child
+         (m/Material
+          .elevation 6.0
+          .color (t/surface)
+          .borderRadius (m/BorderRadius.circular 20.0)
+          .child
+          (m/Padding
+           .padding (m/EdgeInsets.symmetric .horizontal 4.0 .vertical 2.0)
+           .child
+           (m/Row
+            .mainAxisSize m.MainAxisSize/min
+            .children
+            [(ui/icon-btn m.Icons/chevron_left
+                          (fn [] (core/step-search! -1))
+                          :tooltip "Previous match"
+                          :size 20.0)
+             (m/Padding
+              .padding (m/EdgeInsets.symmetric .horizontal 8.0)
+              .child
+              (m/Text (str (if (neg? idx) 1 (inc idx)) " / " n)
+                      .style (m/TextStyle .color (t/ink) .fontSize 13.0)))
+             (ui/icon-btn m.Icons/chevron_right
+                          (fn [] (core/step-search! 1))
+                          :tooltip "Next match"
+                          :size 20.0)])))))
+       (m/SizedBox.shrink)))))
+
 (defn overlay
   "Centered card over the reader. Does not resize the page row.
    Right-hand panels take precedence over the table of contents."
@@ -160,7 +280,7 @@
   (let [ui-state (:ui state)]
     (cond
       (:search-visible ui-state)
-      (modal-shell "ᠬᠠᠶᠢᠯᠲᠠ" (search-body (:search-results state)))
+      (modal-shell "ᠬᠠᠶᠢᠯᠲᠠ" (search-body state))
 
       (:bookmarks-visible ui-state)
       (modal-shell "ᠳᠡᠮᠳᠡᠭ" (bookmarks-body (:bookmarks state)))
@@ -173,7 +293,8 @@
 
       (:toc-visible ui-state)
       (modal-shell "ᠭᠠᠷᠴᠠᠭ"
-                   (toc/pane (or (some-> (:book state) .-toc) [])))
+                   (toc/pane (or (some-> (:book state) .-toc) [])
+                             (:chapter state)))
 
       :else
       (m/SizedBox.shrink))))
@@ -202,7 +323,10 @@
        .mainAxisSize m.MainAxisSize/min
        .children
        [(mongol-action "Copy" (fn [] (core/copy-selection!)))
-        (mongol-action "Highlight" (fn [] (core/add-highlight!)))
+        (mongol-action "Yellow" (fn [] (core/add-highlight! "yellow")))
+        (mongol-action "Green" (fn [] (core/add-highlight! "green")))
+        (mongol-action "Blue" (fn [] (core/add-highlight! "blue")))
+        (mongol-action "Pink" (fn [] (core/add-highlight! "pink")))
         (mongol-action "Underline" (fn [] (core/add-underline!)))
         (mongol-action "Note" (fn [] (core/begin-note!)))
         (mongol-action "Search" (fn [] (core/search-from-selection!)))

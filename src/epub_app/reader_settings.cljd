@@ -14,9 +14,15 @@
   [[:left-to-right "LTR"]
    [:right-to-left "RTL"]])
 
-(def ^:private fonts
+(def ^:private builtin-fonts
   [["OyunQaganTig" "Oyun"]
    ["MongolianBaiZheng" "BaiZheng"]])
+
+(defn- font-options [settings]
+  (let [known (set (map first builtin-fonts))]
+    (into builtin-fonts
+          (map (fn [name] [name name])
+               (remove known (or (:embedded-fonts settings) []))))))
 
 (def ^:private themes
   [[:light "Light"]
@@ -71,8 +77,10 @@
 (defn sections
   [settings & {:keys [group-config on-ime-mode-changed]}]
   (let [{:keys [font-size line-height writing-mode reading-direction font-family
-                theme app-appearance ime-mode]}
+                theme app-appearance ime-mode margin]}
         settings
+        fonts (font-options settings)
+        margin (double (or margin 28.0))
         group-opts (when group-config [:custom-config group-config])]
     [(apply setting/settings-section
             "Type"
@@ -102,7 +110,17 @@
               :show-arrow? true
               :on-tap (fn []
                         (store/update-settings! :font-family (cycle-value font-family fonts))
-                        nil)}]
+                        nil)}
+             {:title "Margin"
+              :subtitle (.toStringAsFixed margin 0)
+              :leading m.Icons/crop_free
+              :trailing (stepper
+                         (fn []
+                           (store/update-settings! :margin (clamp (- margin 4.0) 8.0 72.0))
+                           nil)
+                         (fn []
+                           (store/update-settings! :margin (clamp (+ margin 4.0) 8.0 72.0))
+                           nil))}]
             group-opts)
      (apply setting/settings-section
             "Reading"
