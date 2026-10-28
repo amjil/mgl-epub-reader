@@ -158,7 +158,7 @@
      (m/IconButton
       .tooltip "Export notes"
       .icon (m/Icon m.Icons/file_download_outlined .color (t/ink-muted))
-      .onPressed (fn [] (core/export-annotations! nil))))
+      .onPressed (fn [] (core/export-annotations!) nil))))
     (m/Expanded
      .child
      (if (empty? annotations)
