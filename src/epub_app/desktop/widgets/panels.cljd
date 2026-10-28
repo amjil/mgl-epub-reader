@@ -57,17 +57,31 @@
                      (str (if (neg? idx) 0 (inc idx)) " / " n)
                      "")
                    {:size 12.0 :color (t/ink-muted)})
-          (m/Row
+          (m/Column
            .mainAxisSize m.MainAxisSize/min
            .children
-           [(ui/icon-btn m.Icons/chevron_left
-                         (fn [] (core/step-search! -1))
-                         :tooltip "Previous match"
-                         :size 18.0)
-            (ui/icon-btn m.Icons/chevron_right
-                         (fn [] (core/step-search! 1))
-                         :tooltip "Next match"
-                         :size 18.0)])])))
+           [(m/IconButton
+             .tooltip "Previous match"
+             .iconSize 18.0
+             .padding m.EdgeInsets/zero
+             .visualDensity m.VisualDensity/compact
+             .style (m/IconButton.styleFrom
+                     .tapTargetSize m.MaterialTapTargetSize/shrinkWrap
+                     .padding m.EdgeInsets/zero
+                     .minimumSize (m/Size. 32.0 32.0))
+             .icon (m/Icon m.Icons/chevron_left .color (t/ink-muted) .size 18.0)
+             .onPressed (fn [] (core/step-search! -1) nil))
+            (m/IconButton
+             .tooltip "Next match"
+             .iconSize 18.0
+             .padding m.EdgeInsets/zero
+             .visualDensity m.VisualDensity/compact
+             .style (m/IconButton.styleFrom
+                     .tapTargetSize m.MaterialTapTargetSize/shrinkWrap
+                     .padding m.EdgeInsets/zero
+                     .minimumSize (m/Size. 32.0 32.0))
+             .icon (m/Icon m.Icons/chevron_right .color (t/ink-muted) .size 18.0)
+             .onPressed (fn [] (core/step-search! 1) nil))])])))
       (m/Expanded
        .child
        (if (empty? results)
