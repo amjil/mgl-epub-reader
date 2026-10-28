@@ -74,6 +74,22 @@ class ReaderThemeColors {
   }
 }
 
+/// One long-press selection. Passed as a single argument so the page-view
+/// callback has the same shape as [MglPageView.onLinkTap].
+class MglTextSelection {
+  const MglTextSelection({
+    required this.block,
+    required this.start,
+    required this.end,
+    required this.text,
+  });
+
+  final MglBlock block;
+  final int start;
+  final int end;
+  final String text;
+}
+
 class MglPageView extends StatelessWidget {
   const MglPageView({
     super.key,
@@ -85,6 +101,7 @@ class MglPageView extends StatelessWidget {
     this.selection,
     this.annotations = const [],
     this.onTextSelect,
+    this.onBlockLongPress,
     this.onLinkTap,
   });
 
@@ -95,7 +112,14 @@ class MglPageView extends StatelessWidget {
   final ReaderSelectionRange? highlight;
   final ReaderSelection? selection;
   final List<Annotation> annotations;
-  final void Function(MglBlock block, int start, int end, String text)? onTextSelect;
+
+  /// Span chosen by a long-press. Prefer this over [onBlockLongPress].
+  final void Function(MglTextSelection selection)? onTextSelect;
+
+  /// Same callback as [onTextSelect]. The previous constructor only had this
+  /// name; keeping it means either name is a legal named argument.
+  final void Function(MglTextSelection selection)? onBlockLongPress;
+
   final void Function(String href, bool note)? onLinkTap;
 
   @override
@@ -151,7 +175,7 @@ class MglPageView extends StatelessWidget {
         config: config,
         colors: colors,
         marks: _marks(block),
-        onTextSelect: onTextSelect,
+        onTextSelect: onTextSelect ?? onBlockLongPress,
         onLinkTap: onLinkTap,
       );
     }
@@ -250,7 +274,7 @@ class _SelectableBlock extends StatefulWidget {
   final ReaderLayoutConfig config;
   final ReaderThemeColors colors;
   final List<_Mark> marks;
-  final void Function(MglBlock block, int start, int end, String text)? onTextSelect;
+  final void Function(MglTextSelection selection)? onTextSelect;
   final void Function(String href, bool note)? onLinkTap;
 
   @override
@@ -406,12 +430,12 @@ class _SelectableBlockState extends State<_SelectableBlock> {
       if (start >= plain.length) return;
       end = start + 1;
     }
-    select(
-      widget.block,
-      widget.block.origin + start,
-      widget.block.origin + end,
-      plain.substring(start, end),
-    );
+    select(MglTextSelection(
+      block: widget.block,
+      start: widget.block.origin + start,
+      end: widget.block.origin + end,
+      text: plain.substring(start, end),
+    ));
   }
 
   void _begin(Offset local, Size size) {

@@ -45,8 +45,12 @@
      .annotations anns
      .selection (:selection state)
      .highlight (:highlight state)
-     .onTextSelect (fn [block start end text]
-                     (core/select-span! block start end text)
+     .onTextSelect (fn [sel]
+                     (core/select-span!
+                      (.-block sel)
+                      (.-start sel)
+                      (.-end sel)
+                      (.-text sel))
                      nil)
      .onLinkTap (fn [href note?] (core/open-link! href note?) nil))))
 
