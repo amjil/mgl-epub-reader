@@ -43,7 +43,7 @@
       .child
       (m/SingleChildScrollView
        .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 8.0)
-       .child (books/filter-rail (:library-filter state))))])))
+       .child (books/filter-rail (:library-filter state) (:shelves state))))])))
 
 ;; Empty library state
 (defn- empty-library [state]
@@ -123,7 +123,9 @@
       .runSpacing 22.0
       .children (vec (map #(books/library-card ctx %
                                                :margin (m/EdgeInsets.zero)
-                                               :height 240.0)
+                                               :height 240.0
+                                               :opened (when (= :recent (:library-filter state))
+                                                         (books/opened-label %)))
                           (books/filtered-books state)))))))
 
 (defn screen []

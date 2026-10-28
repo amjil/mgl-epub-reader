@@ -98,7 +98,7 @@
                   :tooltip "Add bookmark")
      (ui/icon-btn m.Icons/search
                   (fn [] (store/toggle-panel! :search-visible))
-                  :tooltip "Search"
+                  :tooltip "Search. Cmd+G or F3 next, Shift previous"
                   :filled? (:search-visible ui-state)
                   :color (if (:search-visible ui-state) t/primary (t/ink-muted)))
      (ui/icon-btn m.Icons/tune

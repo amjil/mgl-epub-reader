@@ -15,17 +15,34 @@
    [:favorites "ᠬᠠᠳᠠᠭᠠᠯᠠᠭᠰᠠᠨ"]
    [:finished "ᠤᠩᠰᠢᠭᠰᠠᠨ"]])
 
+(defn- reading-history [books]
+  ;; Opened books with progress, not the first 20 imports.
+  (vec (take 30
+             (filterv (fn [b]
+                        (or (.-finished b)
+                            (> (or (.-progress b) 0.0) 0.0)))
+                      books))))
+
 (defn filtered-books [state]
   (let [books (:library state)
-        shelf (case (:library-filter state)
-                :favorites (filterv #(.-favorite %) books)
-                :finished (filterv #(.-finished %) books)
-                :recent (vec (take 20 books))
-                (vec books))
+        f (:library-filter state)
+        shelf (cond
+                (= f :favorites) (filterv #(.-favorite %) books)
+                (= f :finished) (filterv #(.-finished %) books)
+                (= f :recent) (reading-history books)
+                (string? f) (filterv #(= f (.-collectionId %)) books)
+                :else (vec books))
         q (or (:library-search-query state) "")]
     (if (seq q)
       (filterv #(matches-query? % q) shelf)
       shelf)))
+
+(defn opened-label [book]
+  (when-let [at (.-lastOpenedAt book)]
+    (let [m (.-month at)
+          d (.-day at)
+          pad (fn [n] (if (< n 10) (str "0" n) (str n)))]
+      (str (.-year at) "-" (pad m) "-" (pad d)))))
 
 (defn matches-query? [book query]
   (let [q (.toLowerCase (or query ""))
@@ -82,6 +99,99 @@
         wanted (+ text-h 44.0)]
     (min (max 64.0 available) wanted)))
 
+(defn show-new-shelf! [ctx]
+  (let [ctrl (m/TextEditingController.)]
+    (-> (m/showDialog
+         .context ctx
+         .builder
+         (fn [dctx]
+           (m/AlertDialog
+            .title (m/Text "New shelf")
+            .content (m/TextField
+                      .controller ctrl
+                      .autofocus true
+                      .decoration (m/InputDecoration. .hintText "Name"))
+            .actions
+            [(m/TextButton
+              .onPressed (fn [] (.pop (m/Navigator.of dctx)) nil)
+              .child (m/Text "Cancel"))
+             (m/TextButton
+              .onPressed (fn []
+                           (core/create-shelf! (.-text ctrl))
+                           (.pop (m/Navigator.of dctx))
+                           nil)
+              .child (m/Text "Add"))])))
+        (.whenComplete (fn [] (.dispose ctrl) nil)))
+    nil))
+
+(defn- shelf-row [dctx book shelf current?]
+  (m/Row
+   .children
+   [(m/Expanded
+     .child
+     (m/TextButton
+      .onPressed (fn []
+                   (core/set-book-shelf! (.-id book) (.-id shelf))
+                   (.pop (m/Navigator.of dctx))
+                   nil)
+      .child (m/Align
+              .alignment m.Alignment/centerLeft
+              .child (m/Text (.-name shelf)
+                             .style (m/TextStyle
+                                     .color (if current? t/primary (t/ink))
+                                     .fontWeight (if current?
+                                                    m.FontWeight/w600
+                                                    m.FontWeight/normal))))))
+    (m/IconButton
+     .tooltip "Remove shelf"
+     .onPressed (fn [] (core/delete-shelf! (.-id shelf)) nil)
+     .icon (m/Icon m.Icons/delete_outline .color (t/ink-muted) .size 18.0))]))
+
+(defn show-shelf-picker! [ctx book]
+  (m/showDialog
+   .context ctx
+   .builder
+   (fn [dctx]
+     (f/widget
+      :watch [state store/app-state]
+      (let [shelves (or (:shelves state) [])
+            current (.-collectionId book)]
+        (m/AlertDialog
+         .title (m/Text "Shelf")
+         .content
+         (m/SizedBox
+          .width 320.0
+          .height 280.0
+          .child
+          (m/Column
+           .crossAxisAlignment m.CrossAxisAlignment/stretch
+           .children
+           [(m/TextButton
+             .onPressed (fn []
+                          (core/set-book-shelf! (.-id book) nil)
+                          (.pop (m/Navigator.of dctx))
+                          nil)
+             .child (m/Align
+                     .alignment m.Alignment/centerLeft
+                     .child (m/Text "None"
+                                    .style (m/TextStyle
+                                            .color (if (nil? current) t/primary (t/ink))))))
+            (m/Expanded
+             .child
+             (m/ListView
+              .children (vec (map #(shelf-row dctx book % (= current (.-id %)))
+                                  shelves))))
+            (m/TextButton
+             .onPressed (fn [] (show-new-shelf! dctx) nil)
+             .child (m/Align
+                     .alignment m.Alignment/centerLeft
+                     .child (m/Text "New shelf")))]))
+         .actions
+         [(m/TextButton
+           .onPressed (fn [] (.pop (m/Navigator.of dctx)) nil)
+           .child (m/Text "Close"))]))))
+  nil))
+
 (defn- book-menu-items [ctx book]
   [{:type :item
     :title (if (.-favorite book) "ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ ᠴᠡᠭᠡᠷᠯᠡᠬᠦ" "ᠬᠠᠳᠠᠭᠠᠯᠠᠬᠤ")
@@ -93,6 +203,11 @@
     :leading m.Icons/check_circle_outline_rounded
     :leading-color t/success
     :on-tap #(core/set-finished! (.-id book) (not (.-finished book)))}
+   {:type :item
+    :title "ᠲᠠᠪᠴᠠ"
+    :leading m.Icons/collections_bookmark_outlined
+    :leading-color t/primary
+    :on-tap #(show-shelf-picker! ctx book)}
    {:type :divider}
    {:type :item
     :title "ᠬᠠᠰᠤᠬᠤ"
@@ -280,7 +395,7 @@
 
 ;; Book card
 (defn library-card
-  [ctx book & {:keys [height margin] :or {height 240.0}}]
+  [ctx book & {:keys [height margin opened] :or {height 240.0}}]
   (let [author (or (.-author book) "")
         progress (.-progress book)]
     (ui/card-shell
@@ -303,7 +418,11 @@
             (when (seq author)
               (m/Padding
                .padding (m/EdgeInsets.only .top 6.0)
-               .child (ui/text author {:size 13.0 :color (t/ink-muted) :max-lines 1})))])
+               .child (ui/text author {:size 13.0 :color (t/ink-muted) :max-lines 1})))
+            (when (seq (or opened ""))
+              (m/Padding
+               .padding (m/EdgeInsets.only .top 6.0)
+               .child (ui/text opened {:size 11.0 :color (t/ink-faint) :max-lines 1})))])
           (when (> progress 0.0)
             (m/Column
              .crossAxisAlignment m.CrossAxisAlignment/start
@@ -338,32 +457,44 @@
                (core/open-library-book! (.-id book))
                nil))))
 
-;; Filter rail
-(defn filter-rail [selected]
-  (m/Column
-   .mainAxisSize m.MainAxisSize/min
-   .children
-   (mapv (fn [[id label]]
-           (m/Container
-            .margin (m/EdgeInsets.symmetric .vertical 4.0)
-            .decoration (when (= id selected)
-                          (m/BoxDecoration
-                           .color t/primary-soft
-                           .borderRadius (m/BorderRadius.circular t/radius-m)
-                           .border (m/Border.all .color t/primary .width 2.0)))
-            .child
-            (m/Material
-             .color m.Colors/transparent
-             .child
-             (m/InkWell
-              .onTap #(store/set-library-filter! id)
-              .borderRadius (m/BorderRadius.circular t/radius-m)
-              .child
+(defn- filter-chip [selected [id label]]
+  (m/Container
+   .margin (m/EdgeInsets.symmetric .vertical 4.0)
+   .decoration (when (= id selected)
+                 (m/BoxDecoration
+                  .color t/primary-soft
+                  .borderRadius (m/BorderRadius.circular t/radius-m)
+                  .border (m/Border.all .color t/primary .width 2.0)))
+   .child
+   (m/Material
+    .color m.Colors/transparent
+    .child
+    (m/InkWell
+     .onTap #(store/set-library-filter! id)
+     .borderRadius (m/BorderRadius.circular t/radius-m)
+     .child
+     (m/Padding
+      .padding (m/EdgeInsets.symmetric .horizontal 12.0 .vertical 12.0)
+      .child
+      (t/mongol-label label
+                      :size 14.0
+                      :color (if (= id selected) t/primary (t/ink-muted))
+                      :weight (if (= id selected) m.FontWeight/w600 m.FontWeight/normal)))))))
+
+;; Filter rail. [shelves] are Shelf rows from the store; their ids are strings.
+(defn filter-rail [selected shelves]
+  (let [custom (mapv (fn [s] [(.-id s) (.-name s)]) (or shelves []))]
+    (m/Column
+     .mainAxisSize m.MainAxisSize/min
+     .children
+     (conj (mapv #(filter-chip selected %) (concat filters custom))
+           (m/Builder
+            .builder
+            (fn [ctx]
               (m/Padding
-               .padding (m/EdgeInsets.symmetric .horizontal 12.0 .vertical 12.0)
+               .padding (m/EdgeInsets.only .top 8.0)
                .child
-               (t/mongol-label label
-                               :size 14.0
-                               :color (if (= id selected) t/primary (t/ink-muted))
-                               :weight (if (= id selected) m.FontWeight/w600 m.FontWeight/normal)))))))
-         filters)))
+               (m/IconButton
+                .tooltip "New shelf"
+                .onPressed (fn [] (show-new-shelf! ctx) nil)
+                .icon (m/Icon m.Icons/add .color t/primary .size 20.0)))))))))

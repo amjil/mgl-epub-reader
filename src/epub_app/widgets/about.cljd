@@ -1,0 +1,42 @@
+(ns epub-app.widgets.about
+  "About dialog and the cheap on-device reading counts."
+  (:require ["package:flutter/material.dart" :as m]
+            [epub-app.state.store :as store]
+            [epub-app.theme :as t]
+            [epub-app.widgets.ui :as ui]))
+
+(defn- stats-line [library]
+  (let [books (vec (or library []))
+        n (count books)
+        finished (count (filter #(.-finished %) books))
+        reading (count (filter #(and (not (.-finished %))
+                                      (> (or (.-progress %) 0.0) 0.0))
+                                books))
+        saved (count (filter #(.-favorite %) books))]
+    (str n " books · " reading " reading · "
+         finished " finished · " saved " saved")))
+
+(defn show-about! [ctx]
+  (m/showDialog
+   .context ctx
+   .builder
+   (fn [dctx]
+     (m/AlertDialog
+      .title (m/Text "Mongolian EPUB Reader")
+      .content
+      (m/Column
+       .mainAxisSize m.MainAxisSize/min
+       .crossAxisAlignment m.CrossAxisAlignment/start
+       .children
+       [(ui/text "Version 1.0.0" {:size 13.0 :color (t/ink-muted)})
+        (ui/gap-v 12)
+        (ui/text "Books, notes, and progress stay on this device."
+                 {:size 14.0 :max-lines 4})
+        (ui/gap-v 12)
+        (ui/text (stats-line (:library @store/app-state))
+                 {:size 13.0 :color t/primary :max-lines 4})])
+      .actions
+      [(m/TextButton
+        .onPressed (fn [] (.pop (m/Navigator.of dctx)) nil)
+        .child (m/Text "Close"))])))
+  nil)

@@ -10,11 +10,12 @@
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]
+            [epub-app.widgets.about :as about]
             [epub-app.widgets.books :as books]
             [epub-app.widgets.ui :as ui]))
 
 ;; Improved book card
-(defn- book-card [ctx book]
+(defn- book-card [ctx book opened]
   (f/widget
    :managed [!hover (atom false) :dispose nil]
    :watch [hover? !hover]
@@ -47,7 +48,11 @@
                                 (when (seq author)
                                   (m/Padding
                                    .padding (m/EdgeInsets.only .top 6.0)
-                                   .child (ui/text author {:size 11.0 :color (t/ink-muted) :max-lines 1}))) ] ) ) ]
+                                   .child (ui/text author {:size 11.0 :color (t/ink-muted) :max-lines 1})))
+                                (when (seq (or opened ""))
+                                  (m/Padding
+                                   .padding (m/EdgeInsets.only .top 6.0)
+                                   .child (ui/text opened {:size 11.0 :color (t/ink-faint) :max-lines 1}))) ] ) ) ]
      (m/MouseRegion
       .cursor m.SystemMouseCursors/click
       .onEnter (fn [_] (reset! !hover true) nil)
@@ -192,7 +197,7 @@
         .mainAxisSize m.MainAxisSize/min
         .children
         [(library-filter-btn state)
-         (books/filter-rail (:library-filter state))])))
+         (books/filter-rail (:library-filter state) (:shelves state))])))
      (m/Padding
       .padding (m/EdgeInsets.fromLTRB 10.0 6.0 10.0 16.0)
       .child
@@ -211,7 +216,18 @@
                           :on-tap (fn []
                                    (store/set-ui! :library-filter-visible false)
                                    (store/toggle-ui! :settings-visible)
-                                   nil)})]))])))
+                                   nil)})
+        (ui/gap-v 4)
+        (m/Builder
+         .builder
+         (fn [ctx]
+           (rail-action-btn {:bg (t/surface-2)
+                             :icon m.Icons/info_outline_rounded
+                             :icon-color (t/ink-muted)
+                             :label "ᠲᠠᠨᠢᠯᠴᠠᠭᠤᠯᠬᠤ"
+                             :label-color (t/ink-muted)
+                             :shadow? false
+                             :on-tap (fn [] (about/show-about! ctx) nil)})))]))])))
 
 ;; Empty library state — scrollable so it never overflows on short windows.
 ;; LayoutBuilder + SingleChildScrollView + ConstrainedBox(minHeight) keeps the
@@ -503,7 +519,10 @@
                   (m/ListView
                    .scrollDirection m.Axis/horizontal
                    .padding (m/EdgeInsets.fromLTRB 24.0 20.0 32.0 20.0)
-                   .children (vec (map #(book-card ctx %) shown)))))))])
+                   .children (vec (map #(book-card ctx %
+                                                       (when (= :recent (:library-filter state))
+                                                         (books/opened-label %)))
+                                        shown)))))))])
          (if (:error state)
            (ui/error-banner (:error state) store/clear-error!)
            (m/SizedBox.shrink))
