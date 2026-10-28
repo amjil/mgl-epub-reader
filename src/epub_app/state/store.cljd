@@ -75,7 +75,8 @@
          :search-visible false
          :bookmarks-visible false
          :notes-visible false
-         :note-visible false}
+         :note-visible false
+         :library-filter-visible false}
     :toc-pane-width 240.0
     :link-preview nil
     :error nil}))
@@ -362,7 +363,8 @@
                               :search-visible false
                               :bookmarks-visible false
                               :notes-visible false
-                              :note-visible false}))
+                              :note-visible false
+                              :library-filter-visible false}))
 
 (defn close-book! []
   (swap! app-state (fn [s]
