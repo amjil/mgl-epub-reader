@@ -1,7 +1,8 @@
 (ns epub-app.desktop.widgets.panels
-  "Docked right-side panels and floating selection / note chrome."
+  "Reader overlays: search, contents, bookmarks, notes, settings."
   (:require ["package:flutter/material.dart" :as m]
             ["package:mongol/mongol.dart" :as mgl]
+            [epub-app.desktop.widgets.toc :as toc]
             [epub-app.reader-settings :as rs]
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
@@ -14,7 +15,8 @@
    :card-radius 12.0
    :show-shadow false})
 
-(def ^:private settings-panel-width 520.0)
+(def ^:private card-max-width 520.0)
+(def ^:private card-max-height 560.0)
 
 (defn- settings-body [settings]
   (rs/horizontal-list settings
@@ -64,19 +66,12 @@
     .onPressed (fn [] (core/remove-bookmark! (.-id bm)) nil))))
 
 (defn- bookmarks-body [bookmarks]
-  (m/Row
-   .children
-   [(m/Padding
-     .padding (m/EdgeInsets.fromLTRB 12.0 16.0 8.0 16.0)
-     .child (t/mongol-label "ᠳᠡᠮᠳᠡᠭ" :size 13.0 :weight m.FontWeight/bold))
-    (m/Expanded
-     .child
-     (if (empty? bookmarks)
-       (ui/empty-state m.Icons/bookmarks_outlined "No bookmarks")
-       (m/ListView
-        .scrollDirection m.Axis/horizontal
-        .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
-        .children (vec (map bookmark-tile bookmarks)))))]))
+  (if (empty? bookmarks)
+    (ui/empty-state m.Icons/bookmarks_outlined "No bookmarks")
+    (m/ListView
+     .scrollDirection m.Axis/horizontal
+     .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
+     .children (vec (map bookmark-tile bookmarks)))))
 
 (defn- note-tile [ann]
   (mgl/MongolListTile
@@ -92,39 +87,96 @@
     .onPressed (fn [] (core/remove-annotation! (.-id ann)) nil))))
 
 (defn- notes-body [annotations]
-  (m/Row
-   .children
-   [(m/Padding
-     .padding (m/EdgeInsets.fromLTRB 12.0 16.0 8.0 16.0)
-     .child (t/mongol-label "ᠲᠡᠮᠳᠡᠭᠯᠡᠯ" :size 13.0 :weight m.FontWeight/bold))
-    (m/Expanded
-     .child
-     (if (empty? annotations)
-       (ui/empty-state m.Icons/notes_outlined "No notes")
-       (m/ListView
-        .scrollDirection m.Axis/horizontal
-        .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
-        .children (vec (map note-tile annotations)))))]))
+  (if (empty? annotations)
+    (ui/empty-state m.Icons/notes_outlined "No notes")
+    (m/ListView
+     .scrollDirection m.Axis/horizontal
+     .padding (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 12.0)
+     .children (vec (map note-tile annotations)))))
 
-(defn docked
-  "Right-side docked pane. Returns nil when no right panel is open."
+(defn- dismiss-panels! []
+  (store/hide-panels!))
+
+(defn- title-rail [label]
+  (m/Container
+   .width 44.0
+   .decoration (m/BoxDecoration
+                .border (m/Border
+                         .right (m/BorderSide .color (t/outline) .width 1.0)))
+   .child
+   (m/Column
+    .children
+    [(ui/icon-btn m.Icons/close_rounded
+                  (fn [] (dismiss-panels!))
+                  :size 18.0)
+     (m/Expanded
+      .child
+      (m/Center
+       .child
+       (t/mongol-label label :size 15.0 :weight m.FontWeight/bold)))])))
+
+(defn- modal-card [label body]
+  (m/Row
+   .crossAxisAlignment m.CrossAxisAlignment/stretch
+   .children
+   [(title-rail label)
+    (m/Expanded .child body)]))
+
+(defn- modal-shell [label body]
+  (m/Positioned
+   .left 0.0 .top 0.0 .right 0.0 .bottom 0.0
+   .child
+   (m/Stack
+    .children
+    [(m/ModalBarrier
+      .color (t/fade (t/ink) 0.42)
+      .dismissible true
+      .onDismiss (fn [] (dismiss-panels!) nil))
+     (m/LayoutBuilder
+      .builder
+      (fn [_ constraints]
+        (let [max-w (max 280.0 (- (.-maxWidth constraints) 48.0))
+              max-h (max 200.0 (- (.-maxHeight constraints) 48.0))]
+          (m/Center
+           .child
+           (m/Material
+            .color m.Colors/transparent
+            .child
+            (m/Container
+             .width (min card-max-width max-w)
+             .height (min card-max-height max-h)
+             .decoration (m/BoxDecoration
+                          .color (t/surface)
+                          .borderRadius (m/BorderRadius.circular t/radius-l)
+                          .border (m/Border.all .color (t/outline) .width 1.0)
+                          .boxShadow t/shadow-lg)
+             .clipBehavior m.Clip/antiAlias
+             .child (modal-card label body)))))))])))
+
+(defn overlay
+  "Centered card over the reader. Does not resize the page row.
+   Right-hand panels take precedence over the table of contents."
   [state]
-  (let [ui-state (:ui state)
-        child (cond
-                (:search-visible ui-state) (search-body (:search-results state))
-                (:bookmarks-visible ui-state) (bookmarks-body (:bookmarks state))
-                (:notes-visible ui-state) (notes-body (:annotations state))
-                (:settings-visible ui-state) (settings-body (:settings state))
-                :else nil)]
-    (when child
-      (m/Container
-       .width (if (:settings-visible ui-state)
-                settings-panel-width
-                t/side-panel-width)
-       .decoration (m/BoxDecoration
-                    .color (t/surface)
-                    .border (m/Border .left (m/BorderSide .color (t/outline) .width 1.0)))
-       .child child))))
+  (let [ui-state (:ui state)]
+    (cond
+      (:search-visible ui-state)
+      (modal-shell "ᠬᠠᠶᠢᠯᠲᠠ" (search-body (:search-results state)))
+
+      (:bookmarks-visible ui-state)
+      (modal-shell "ᠳᠡᠮᠳᠡᠭ" (bookmarks-body (:bookmarks state)))
+
+      (:notes-visible ui-state)
+      (modal-shell "ᠲᠡᠮᠳᠡᠭᠯᠡᠯ" (notes-body (:annotations state)))
+
+      (:settings-visible ui-state)
+      (modal-shell "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠬᠤ" (settings-body (:settings state)))
+
+      (:toc-visible ui-state)
+      (modal-shell "ᠭᠠᠷᠴᠠᠭ"
+                   (toc/pane (or (some-> (:book state) .-toc) [])))
+
+      :else
+      (m/SizedBox.shrink))))
 
 (defn- mongol-action [label on-pressed]
   (mgl/MongolTextButton
