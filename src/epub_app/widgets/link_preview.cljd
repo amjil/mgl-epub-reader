@@ -25,7 +25,7 @@
      (m/Column
       .children
       (filterv some?
-               [                (ui/icon-btn m.Icons/close_rounded
+               [(ui/icon-btn m.Icons/close_rounded
                              dismiss!
                              :tooltip "Close"
                              :size 18.0)
@@ -70,36 +70,58 @@
      .child (preview-body preview vertical?))]))
 
 (defn layer
-  "Dimmed card over the reader. Nothing when no link is open."
+  "Dimmed card over the reader. Anchors to bottom on mobile for thumb reach."
   [preview vertical?]
-  (if preview
-    (m/Positioned
-     .left 0.0 .top 0.0 .right 0.0 .bottom 0.0
-     .child
-     (m/Stack
-      .children
-      [(m/ModalBarrier
-        .color (t/fade (t/ink) 0.42)
-        .dismissible true
-        .onDismiss dismiss!)
-       (m/LayoutBuilder
-        .builder
-        (fn [_ constraints]
-          (let [max-w (max 280.0 (- (.-maxWidth constraints) 48.0))
-                max-h (max 200.0 (- (.-maxHeight constraints) 48.0))]
-            (m/Center
-             .child
-             (m/Material
-              .color m.Colors/transparent
-              .child
-              (m/Container
-               .width (min card-max-width max-w)
-               .height (min card-max-height max-h)
-               .decoration (m/BoxDecoration
-                            .color (t/surface)
-                            .borderRadius (m/BorderRadius.circular t/radius-l)
-                            .border (m/Border.all .color (t/outline) .width 1.0)
-                            .boxShadow t/shadow-lg)
-               .clipBehavior m.Clip/antiAlias
-               .child (card preview vertical?)))))))]))
-    (m/SizedBox.shrink)))
+  (m/Positioned
+   .left 0.0 .top 0.0 .right 0.0 .bottom 0.0
+   .child
+   (m/AnimatedSwitcher
+    .duration (dart:core/Duration. .milliseconds 200)
+    .child
+    (if preview
+      (m/SizedBox.expand
+       .key (m/ValueKey. (str (:chapter-id preview) "-" (:text preview)))
+       .child
+       (m/Stack
+        .children
+        [(m/ModalBarrier
+          .color (t/fade (t/ink) 0.42)
+          .dismissible true
+          .onDismiss dismiss!)
+         (m/LayoutBuilder
+          .builder
+          (fn [_ constraints]
+            (let [avail-w (.-maxWidth constraints)
+                  avail-h (.-maxHeight constraints)
+                  mobile-layout? (< avail-w 600.0)
+                  max-w (if mobile-layout?
+                          (- avail-w 24.0)
+                          (min card-max-width (max 280.0 (- avail-w 48.0))))
+                  max-h (if mobile-layout?
+                          (min 280.0 (* avail-h 0.45))
+                          (min card-max-height (max 200.0 (- avail-h 48.0))))]
+              (m/Align
+               .alignment (if mobile-layout?
+                            m.Alignment/bottomCenter
+                            m.Alignment/center)
+               .child
+               (m/Padding
+                .padding (if mobile-layout?
+                           (m.EdgeInsets/fromLTRB 12.0 0.0 12.0 24.0)
+                           m.EdgeInsets/zero)
+                .child
+                (m/Material
+                 .color m.Colors/transparent
+                 .child
+                 (m/Container
+                  .width max-w
+                  .height max-h
+                  .decoration (m/BoxDecoration
+                               .color (t/surface)
+                               .borderRadius (m/BorderRadius.circular t/radius-l)
+                               .border (m/Border.all .color (t/outline) .width 1.0)
+                               .boxShadow t/shadow-lg)
+                  .clipBehavior m.Clip/antiAlias
+                  .child (card preview vertical?))))))))]))
+      (m/SizedBox.shrink
+       .key (m/ValueKey. "link-preview-closed"))))))

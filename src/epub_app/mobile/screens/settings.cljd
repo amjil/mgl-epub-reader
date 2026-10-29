@@ -2,7 +2,7 @@
   "Mobile settings tab — delegates to shared reader-settings sections."
   (:require ["package:flutter/material.dart" :as m]
             [cljd.flutter :as f]
-            [epub-app.reader-settings :as rs]
+            [epub-app.widgets.reader-settings :as rs]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]))
 

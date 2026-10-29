@@ -1,15 +1,55 @@
 (ns epub-app.mobile.screens.reader
   "Mobile reader screen — Traditional Mongolian book reading"
   (:require ["package:flutter/material.dart" :as m]
+            ["package:flutter/services.dart" :as s]
             ["package:mongol/mongol.dart" :as mgl]
             [cljd.flutter :as f]
             [epub-app.desktop.widgets.panels :as panels]
+            [epub-app.mobile.widgets.keyboard :as kb]
+            [epub-app.widgets.reader-settings :as reader-settings]
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]
             [epub-app.widgets.link-preview :as link-preview]
             [epub-app.widgets.page :as page]
             [epub-app.widgets.ui :as ui]))
+
+(def ^:private mobile-bar-w 56.0)
+
+(defn- any-panel-open? [ui-state]
+  (or (:toc-visible ui-state)
+      (:settings-visible ui-state)
+      (:search-visible ui-state)
+      (:bookmarks-visible ui-state)
+      (:notes-visible ui-state)))
+
+(defn- toggle-mobile-drawer! [k]
+  (s.HapticFeedback/selectionClick)
+  (store/toggle-mobile-panel! k)
+  nil)
+
+(defn- on-reader-tap! [^m/TapUpDetails details size state]
+  (let [dx (.-dx (.-localPosition details))
+        w (.-width size)
+        rtl? (= :right-to-left (:reading-direction (:settings state)))
+        ui-state (:ui state)]
+    (store/set-highlight! nil)
+    (cond
+      (:selection state)
+      (core/clear-selection!)
+
+      (:menu-visible ui-state)
+      (store/hide-chrome!)
+
+      (< dx (* w 0.26))
+      (if rtl? (core/next-page!) (core/previous-page!))
+
+      (> dx (* w 0.74))
+      (if rtl? (core/previous-page!) (core/next-page!))
+
+      :else
+      (store/toggle-ui! :menu-visible))
+    nil))
 
 ;; TOC list tile
 (defn- toc-tile [item]
@@ -19,7 +59,7 @@
            .borderRadius (m/BorderRadius.circular t/radius-s))
    .tileColor (t/surface)
    .title (ui/reader-text (.-title item) {:size 16.0 :weight m.FontWeight/w500})
-   .onTap (fn [] (core/open-toc-href! (.-href item)))))
+   .onTap (fn [] (core/open-toc-href! (.-href item)) nil)))
 
 ;; TOC list
 (defn- toc-list [items]
@@ -32,16 +72,37 @@
                         (map toc-tile (.-children item))))
                 items))))
 
-;; Vertical icon column helper
-(defn- icon-col [icons]
-  (m/Column
-   .mainAxisSize m.MainAxisSize/min
-   .children icons))
+(defn- side-drawer [drawer-w body]
+  (m/Positioned
+   .top 0.0 .bottom 0.0 .right 0.0 .width drawer-w
+   .child (ui/frosted body :elevation 8.0 :opacity 0.92)))
+
+(defn- settings-panel [settings]
+  (ui/side-sheet
+   :right 280.0
+   (m/SafeArea
+    .child
+    (reader-settings/horizontal-list
+     settings
+     :include-about? false
+     :group-config {:card-radius 16.0
+                    :item-radius 12.0
+                    :show-shadow true}
+     :on-ime-mode-changed kb/apply-ime-mode!))))
+
+(defn- search-panel [state drawer-w]
+  (side-drawer drawer-w (panels/drawer-search-body state)))
+
+(defn- bookmarks-panel [bookmarks drawer-w]
+  (side-drawer drawer-w (panels/drawer-bookmarks-body bookmarks)))
+
+(defn- notes-panel [annotations drawer-w]
+  (side-drawer drawer-w (panels/drawer-notes-body annotations)))
 
 ;; Left chrome bar (back + title + reader tools)
-(defn- left-bar [book]
+(defn- left-bar [book ui-state]
   (m/Positioned
-   .top 0.0 .bottom 0.0 .left 0.0 .width t/chrome-width
+   .top 0.0 .bottom 0.0 .left 0.0 .width mobile-bar-w
    .child
    (ui/frosted
     (m/SafeArea
@@ -50,7 +111,9 @@
      (m/Column
       .children
       [(ui/icon-btn m.Icons/arrow_back_rounded
-                    (fn [] (core/close-book!))
+                    (fn []
+                      (kb/dismiss!)
+                      (core/close-book!))
                     :tooltip "Back to library"
                     :size 22.0)
        (ui/gap-v 4)
@@ -61,25 +124,39 @@
          .child
          (ui/text (or (some-> book .-title) "")
                   {:size 15.0 :weight m.FontWeight/w600 :max-lines 2})))
-       (icon-col
-        [         (ui/icon-btn m.Icons/list_rounded
-                      (fn [] (store/toggle-mobile-panel! :toc-visible))
-                      :tooltip "Contents")
+       (m/Column
+        .mainAxisSize m.MainAxisSize/min
+        .children
+        [(ui/icon-btn m.Icons/list_rounded
+                      #(toggle-mobile-drawer! :toc-visible)
+                      :tooltip "Contents"
+                      :filled? (:toc-visible ui-state)
+                      :color (if (:toc-visible ui-state) t/primary t/ink))
          (ui/icon-btn m.Icons/bookmarks_outlined
-                      (fn [] (store/toggle-mobile-panel! :bookmarks-visible))
-                      :tooltip "Bookmarks")
+                      #(toggle-mobile-drawer! :bookmarks-visible)
+                      :tooltip "Bookmarks"
+                      :filled? (:bookmarks-visible ui-state)
+                      :color (if (:bookmarks-visible ui-state) t/primary t/ink))
          (ui/icon-btn m.Icons/notes_outlined
-                      (fn [] (store/toggle-mobile-panel! :notes-visible))
-                      :tooltip "Notes")
+                      #(toggle-mobile-drawer! :notes-visible)
+                      :tooltip "Notes"
+                      :filled? (:notes-visible ui-state)
+                      :color (if (:notes-visible ui-state) t/primary t/ink))
          (ui/icon-btn m.Icons/bookmark_add_outlined
-                      (fn [] (core/add-bookmark!))
+                      (fn []
+                        (s.HapticFeedback/lightImpact)
+                        (core/add-bookmark!))
                       :tooltip "Add bookmark")
          (ui/icon-btn m.Icons/search_rounded
-                      (fn [] (store/toggle-mobile-panel! :search-visible))
-                      :tooltip "Search")
+                      #(toggle-mobile-drawer! :search-visible)
+                      :tooltip "Search"
+                      :filled? (:search-visible ui-state)
+                      :color (if (:search-visible ui-state) t/primary t/ink))
          (ui/icon-btn m.Icons/tune_rounded
-                      (fn [] (store/toggle-mobile-panel! :settings-visible))
-                      :tooltip "Settings")])]))
+                      #(toggle-mobile-drawer! :settings-visible)
+                      :tooltip "Settings"
+                      :filled? (:settings-visible ui-state)
+                      :color (if (:settings-visible ui-state) t/primary t/ink))])]))
     :elevation 8.0 :opacity 0.88)))
 
 ;; Right chrome bar (prev/next page + progress info)
@@ -232,56 +309,89 @@
           .child (ui/text "Cancel" {:color (t/ink-muted) :size 14.0}))])])))))
 
 ;; Full overlay stack (chrome + panels)
-(defn- overlay [state]
+(defn- overlay [state size]
   (let [ui-state (:ui state)
         book (:book state)
-        menu? (:menu-visible ui-state)]
+        settings (:settings state)
+        menu? (:menu-visible ui-state)
+        panel-open? (any-panel-open? ui-state)
+        drawer-w (min 300.0 (- (.-width size) 64.0))]
     (m/Stack
      .fit m.StackFit/expand
      .children
      (filterv some?
-              [(when menu? (left-bar book))
-               (when (and menu? (seq (:pages state)))
+              [(when (or panel-open? (:note-visible ui-state))
+                 (m/Positioned.fill
+                  .child
+                  (m/GestureDetector
+                   .behavior m.HitTestBehavior/opaque
+                   .onTap (fn []
+                            (kb/dismiss!)
+                            (store/hide-panels!)
+                            (when (:note-visible ui-state)
+                              (core/clear-selection!))
+                            nil)
+                   .child (m/ColoredBox .color (t/fade t/ink 0.28)))))
+
+               (when menu? (left-bar book ui-state))
+               (when (and menu? (seq (:pages state)) (not panel-open?))
                  (right-bar state))
+
+               (when (:toc-visible ui-state)
+                 (m/Positioned
+                  .top 0.0 .bottom 0.0
+                  .left (if menu? mobile-bar-w 0.0)
+                  .width (min 240.0 (- (.-width size) 64.0))
+                  .child
+                  (ui/frosted
+                   (toc-list (or (some-> book .-toc) []))
+                   :elevation 8.0)))
+
+               (when (:settings-visible ui-state) (settings-panel settings))
+               (when (:search-visible ui-state) (search-panel state drawer-w))
+               (when (:bookmarks-visible ui-state) (bookmarks-panel (:bookmarks state) drawer-w))
+               (when (:notes-visible ui-state) (notes-panel (:annotations state) drawer-w))
+
                (panels/search-stepper)
-               (panels/overlay state)
                (when (:selection state) (selection-toolbar))
                (when (:note-visible ui-state) (note-panel (:note-draft state)))]))))
+
+(defn- reader-body [state]
+  (m/Scaffold
+   .backgroundColor (t/bg)
+   .body
+   (m/SafeArea
+    .child
+    (m/LayoutBuilder
+     .builder
+     (fn [_ constraints]
+       (let [size (m/Size. (.-maxWidth constraints) (.-maxHeight constraints))]
+         (page/schedule-paginate! state size)
+         (m/Stack
+          .children
+          [(m/GestureDetector
+            .onTapUp (fn [details] (on-reader-tap! details size state))
+            .onDoubleTap (fn [] (core/add-bookmark!))
+            .child
+            (m/Stack
+             .children
+             [(page/view state size)
+              (m/Positioned
+               .top 0.0 .bottom 0.0 .right 0.0 .width 5.0
+               .child (ui/v-progress (or (:progress state) 0.0)))
+              (if (:error state)
+                (ui/error-banner (:error state) store/clear-error!)
+                (m/SizedBox.shrink))]))
+           (overlay state size)
+           (link-preview/layer
+            (:link-preview state)
+            (= :vertical (:writing-mode (:settings state))))])))))))
 
 ;; Root reader screen
 (defn screen []
   (f/widget
    :watch [state store/app-state]
-   (m/Scaffold
-    .backgroundColor (t/bg)
-    .body
-    (m/SafeArea
-     .child
-     (m/LayoutBuilder
-      .builder
-      (fn [_ constraints]
-        (let [size (m/Size. (.-maxWidth constraints) (.-maxHeight constraints))]
-          (page/schedule-paginate! state size)
-          (m/Stack
-           .children
-           [(m/GestureDetector
-             .onTap (fn []
-                      (store/set-highlight! nil)
-                      (if (:selection state)
-                        (core/clear-selection!)
-                        (store/toggle-ui! :menu-visible)))
-             .onDoubleTap (fn [] (core/add-bookmark!))
-             .child
-             (m/Stack
-              .children
-              [(page/view state size)
-               (m/Positioned
-                .top 0.0 .bottom 0.0 .right 0.0 .width 5.0
-                .child (ui/v-progress (or (:progress state) 0.0)))
-               (if (:error state)
-                 (ui/error-banner (:error state) store/clear-error!)
-                 (m/SizedBox.shrink))]))
-            (overlay state)
-            (link-preview/layer
-             (:link-preview state)
-             (= :vertical (:writing-mode (:settings state))))]))))))))
+   (let [body (reader-body state)]
+     (if (= :builtin (get-in state [:settings :ime-mode] :builtin))
+       (kb/wrap body)
+       body))))

@@ -29,30 +29,51 @@
              .tooltip "Back"
              .onPressed dismiss-keyboard!)))
 
-(defn- search-field [search-ctrl search-focus-node]
+(defn- search-field [search-ctrl search-focus-node query hit-count]
   (m/Container
-   .width 72.0
-   .margin (m/EdgeInsets.symmetric .horizontal 8.0 .vertical 16.0)
-   .padding (m/EdgeInsets.symmetric .horizontal 6.0 .vertical 8.0)
+   .width 68.0
+   .margin (m/EdgeInsets.symmetric .horizontal 10.0 .vertical 16.0)
+   .padding (m/EdgeInsets.fromLTRB 6.0 12.0 6.0 6.0)
    .decoration (m/BoxDecoration
                 .color (t/surface)
                 .borderRadius (m/BorderRadius.circular t/radius-m)
                 .border (m/Border.all .color (t/outline) .width 1.0)
                 .boxShadow (t/card-shadow))
    .child
-   (mgl/MongolTextField
-    .controller search-ctrl
-    .focusNode search-focus-node
-    .maxLines 1
-    .style (t/mongol-style :size 16.0)
-    .decoration (m/InputDecoration
-                 .hintText "Search"
-                 .border m.InputBorder/none
-                 .hintStyle (t/mongol-style :size 16.0 :color (t/ink-faint)))
-    .onChanged (fn [txt] (store/set-library-search! (or txt "")) nil)
-    .onSubmitted (fn [_]
-                   (kb/dismiss!)
-                   nil))))
+   (m/Column
+    .children
+    [(m/Icon m.Icons/search .size 20.0 .color (t/ink-muted))
+     (m/SizedBox .height 8.0)
+     (m/Expanded
+      .child
+      (mgl/MongolTextField
+       .controller search-ctrl
+       .focusNode search-focus-node
+       .maxLines 1
+       .style (t/mongol-style :size 16.0)
+       .decoration (m/InputDecoration
+                    .hintText "Search"
+                    .border m.InputBorder/none
+                    .hintStyle (t/mongol-style :size 16.0 :color (t/ink-faint)))
+       .onChanged (fn [txt] (store/set-library-search! (or txt "")) nil)
+       .onSubmitted (fn [_]
+                      (kb/dismiss!)
+                      nil)))
+     (if (seq query)
+       (m/Column
+        .mainAxisSize m.MainAxisSize/min
+        .children
+        [(ui/text (str hit-count)
+                  {:size 12.0 :color (t/ink-muted) :weight m.FontWeight/w500})
+         (m/IconButton
+          .iconSize 18.0
+          .visualDensity m.VisualDensity/compact
+          .icon (m/Icon m.Icons/cancel_rounded .color (t/ink-muted))
+          .onPressed (fn []
+                       (.clear search-ctrl)
+                       (store/set-library-search! "")
+                       nil))])
+       (m/SizedBox.shrink))])))
 
 (defn screen []
   (f/widget
@@ -67,7 +88,7 @@
      (m/Row
       .crossAxisAlignment m.CrossAxisAlignment/stretch
       .children
-      [(search-field search-ctrl search-focus-node)
+      [(search-field search-ctrl search-focus-node q (count hits))
        (m/Expanded
         .child
         (cond

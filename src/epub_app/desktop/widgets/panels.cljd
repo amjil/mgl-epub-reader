@@ -4,7 +4,7 @@
             ["package:mongol/mongol.dart" :as mgl]
             [cljd.flutter :as f]
             [epub-app.desktop.widgets.toc :as toc]
-            [epub-app.reader-settings :as rs]
+            [epub-app.widgets.reader-settings :as rs]
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]
@@ -312,6 +312,11 @@
 
       :else
       (m/SizedBox.shrink))))
+
+(defn drawer-search-body [state] (search-body state))
+(defn drawer-bookmarks-body [bookmarks] (bookmarks-body bookmarks))
+(defn drawer-notes-body [annotations] (notes-body annotations))
+(defn drawer-settings-body [settings] (settings-body settings))
 
 (defn- mongol-action [label on-pressed]
   (mgl/MongolTextButton

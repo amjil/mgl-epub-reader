@@ -6,7 +6,7 @@
             ["package:mongol/mongol.dart" :as mgl]
             [cljd.flutter :as f]
             [epub-app.desktop.shortcuts :as shortcuts]
-            [epub-app.reader-settings :as rs]
+            [epub-app.widgets.reader-settings :as rs]
             [epub-app.services.epub-core :as core]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]

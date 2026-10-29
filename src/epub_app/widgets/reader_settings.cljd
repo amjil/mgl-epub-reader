@@ -1,10 +1,12 @@
-(ns epub-app.reader-settings
+(ns epub-app.widgets.reader-settings
   "Shared reader settings sections (mgl-components) for mobile and desktop."
   (:require ["package:flutter/gestures.dart" :as g]
             ["package:flutter/material.dart" :as m]
+            ["package:flutter/services.dart" :as s]
             [cljd.flutter :as f]
             [components.setting :as setting]
             [epub-app.state.store :as store]
+            [epub-app.theme :as t]
             [epub-app.widgets.about :as about]))
 
 (def ^:private writing-modes
@@ -49,14 +51,22 @@
   (double (max lo (min hi v))))
 
 (defn- step-btn [icon on-tap]
-  (m/GestureDetector
-   .onTap on-tap
-   .behavior m.HitTestBehavior/opaque
+  (m/Material
+   .color m.Colors/transparent
    .child
-   (m/SizedBox
-    .width 24.0
-    .height 24.0
-    .child (m/Center .child (m/Icon icon .size 18.0)))))
+   (m/InkWell
+    .borderRadius (m.BorderRadius/circular 8.0)
+    .onTap (fn []
+             (s.HapticFeedback/selectionClick)
+             (on-tap))
+    .child
+    (m/Container
+     .width 32.0
+     .height 32.0
+     .decoration (m/BoxDecoration
+                  .borderRadius (m.BorderRadius/circular 8.0)
+                  .border (m/Border.all .color (t/outline) .width 1.0))
+     .child (m/Center .child (m/Icon icon .size 18.0 .color (t/ink)))))))
 
 (defn- stepper [on-dec on-inc]
   (m/FittedBox
@@ -66,14 +76,21 @@
     .mainAxisSize m.MainAxisSize/min
     .children
     [(step-btn m.Icons/remove on-dec)
+     (m/SizedBox .height 6.0)
      (step-btn m.Icons/add on-inc)])))
 
-(defn- ime-tap [ime-mode on-ime-mode-changed]
+(defn- haptic-tap [f]
   (fn []
-    (let [next (if (= ime-mode :system) :builtin :system)]
-      (store/update-settings! :ime-mode next)
-      (when on-ime-mode-changed (on-ime-mode-changed (= :builtin next)))
-      nil)))
+    (s.HapticFeedback/selectionClick)
+    (f)))
+
+(defn- ime-tap [ime-mode on-ime-mode-changed]
+  (haptic-tap
+   (fn []
+     (let [next (if (= ime-mode :system) :builtin :system)]
+       (store/update-settings! :ime-mode next)
+       (when on-ime-mode-changed (on-ime-mode-changed (= :builtin next)))
+       nil))))
 
 (defn sections
   [settings & {:keys [group-config on-ime-mode-changed]}]
@@ -109,9 +126,10 @@
               :subtitle (option-label font-family fonts)
               :leading m.Icons/font_download_outlined
               :show-arrow? true
-              :on-tap (fn []
-                        (store/update-settings! :font-family (cycle-value font-family fonts))
-                        nil)}
+              :on-tap (haptic-tap
+                       (fn []
+                         (store/update-settings! :font-family (cycle-value font-family fonts))
+                         nil))}
              {:title "Margin"
               :subtitle (.toStringAsFixed margin 0)
               :leading m.Icons/crop_free
@@ -129,16 +147,18 @@
               :subtitle (option-label writing-mode writing-modes)
               :leading m.Icons/view_agenda_outlined
               :show-arrow? true
-              :on-tap (fn []
-                        (store/update-settings! :writing-mode (cycle-value writing-mode writing-modes))
-                        nil)}
+              :on-tap (haptic-tap
+                       (fn []
+                         (store/update-settings! :writing-mode (cycle-value writing-mode writing-modes))
+                         nil))}
              {:title "Direction"
               :subtitle (option-label reading-direction reading-dirs)
               :leading m.Icons/swap_horiz
               :show-arrow? true
-              :on-tap (fn []
-                        (store/update-settings! :reading-direction (cycle-value reading-direction reading-dirs))
-                        nil)}]
+              :on-tap (haptic-tap
+                       (fn []
+                         (store/update-settings! :reading-direction (cycle-value reading-direction reading-dirs))
+                         nil))}]
             group-opts)
      (apply setting/settings-section
             "Theme"
@@ -146,17 +166,19 @@
               :subtitle (option-label (or app-appearance :light) app-appearances)
               :leading m.Icons/brightness_6_outlined
               :show-arrow? true
-              :on-tap (fn []
-                        (store/update-settings! :app-appearance
-                                                (cycle-value (or app-appearance :light) app-appearances))
-                        nil)}
+              :on-tap (haptic-tap
+                       (fn []
+                         (store/update-settings! :app-appearance
+                                                 (cycle-value (or app-appearance :light) app-appearances))
+                         nil))}
              {:title "Reading theme"
               :subtitle (option-label theme themes)
               :leading m.Icons/palette_outlined
               :show-arrow? true
-              :on-tap (fn []
-                        (store/update-settings! :theme (cycle-value theme themes))
-                        nil)}]
+              :on-tap (haptic-tap
+                       (fn []
+                         (store/update-settings! :theme (cycle-value theme themes))
+                         nil))}]
             group-opts)
      (apply setting/settings-section
             "Input"
@@ -200,17 +222,20 @@
             (when group-config [:custom-config group-config])))))
 
 (defn horizontal-list
-  [settings & {:keys [group-config on-ime-mode-changed wheel-horizontal?]}]
-  (let [content (fn [ctrl]
+  [settings & {:keys [group-config on-ime-mode-changed wheel-horizontal? include-about?]}]
+  (let [sections+ (vec (sections settings
+                                 :group-config group-config
+                                 :on-ime-mode-changed on-ime-mode-changed))
+        children (if (false? include-about?)
+                   sections+
+                   (conj sections+ (about-section group-config)))
+        content (fn [ctrl]
                   (m/ListView
                    .controller ctrl
                    .scrollDirection m.Axis/horizontal
                    .physics (m/ClampingScrollPhysics.)
                    .padding (m/EdgeInsets.symmetric .vertical 8.0)
-                   .children (conj (vec (sections settings
-                                                  :group-config group-config
-                                                  :on-ime-mode-changed on-ime-mode-changed))
-                                   (about-section group-config))))]
+                   .children children))]
     (if wheel-horizontal?
       (f/widget
        :managed [ctrl (m/ScrollController.)]

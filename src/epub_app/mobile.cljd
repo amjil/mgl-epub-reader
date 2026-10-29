@@ -13,11 +13,11 @@
             [epub-app.theme :as t]
             [virtual-keyboard.input-control :as input-control]))
 
-(defn- tab-body [tab]
+(defn- tab-index [tab]
   (case tab
-    :search (search/screen)
-    :settings (settings/screen)
-    (library/screen)))
+    :search 1
+    :settings 2
+    0))
 
 (defn- opening? [state]
   (contains? #{:loading-book :loading-chapter} (:status state)))
@@ -36,7 +36,12 @@
       (m/Stack
        .fit m.StackFit/expand
        .children
-       [(tab-body tab)
+       [(m/IndexedStack
+         .index (int (tab-index tab))
+         .children
+         [(library/screen)
+          (search/screen)
+          (settings/screen)])
         (if (opening? state)
           (m/ModalBarrier
            .dismissible false

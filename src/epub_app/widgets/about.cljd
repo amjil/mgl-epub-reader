@@ -1,47 +1,91 @@
 (ns epub-app.widgets.about
-  "About dialog and the cheap on-device reading counts."
+  "About dialog and on-device reading statistics in vertical Mongolian layout."
   (:require ["package:flutter/material.dart" :as m]
+            ["package:mongol/mongol.dart" :as mgl]
             [epub-app.state.store :as store]
             [epub-app.theme :as t]
             [epub-app.widgets.ui :as ui]))
 
-(defn- stats-line [library]
+(defn- library-stats [library]
   (let [books (vec (or library []))
         n (count books)
         finished (count (filter #(.-finished %) books))
         reading (count (filter #(and (not (.-finished %))
-                                      (> (or (.-progress %) 0.0) 0.0))
-                                books))
+                                     (> (or (.-progress %) 0.0) 0.0))
+                               books))
         saved (count (filter #(.-favorite %) books))]
-    (str n " books · " reading " reading · "
-         finished " finished · " saved " saved")))
+    [{:label "Books" :count n :icon m.Icons/menu_book_rounded}
+     {:label "Reading" :count reading :icon m.Icons/auto_stories_outlined}
+     {:label "Finished" :count finished :icon m.Icons/check_circle_outline}
+     {:label "Saved" :count saved :icon m.Icons/star_outline_rounded}]))
+
+(defn- stat-column [{:keys [label count icon]}]
+  (m/Container
+   .padding (m.EdgeInsets/symmetric .horizontal 8.0 .vertical 10.0)
+   .decoration (m/BoxDecoration
+                .color (t/fade t/primary 0.08)
+                .borderRadius (m.BorderRadius/circular t/radius-s)
+                .border (m/Border.all .color (t/outline) .width 1.0))
+   .child
+   (m/Column
+    .mainAxisSize m.MainAxisSize/min
+    .children
+    [(m/Icon icon .size 18.0 .color t/primary)
+     (m/SizedBox .height 8.0)
+     (ui/text (str count) {:size 16.0 :weight m.FontWeight/bold :color t/primary})
+     (m/SizedBox .height 6.0)
+     (ui/text label {:size 13.0 :color (t/ink-muted)})])))
 
 (defn show-about! [ctx]
   (m/showDialog
    .context ctx
    .builder
    (fn [dctx]
-     (m/AlertDialog
-      .title (m/Text "Mongolian EPUB Reader")
-      .content
-      (m/SizedBox
-       .width 280.0
-       .child
-       (m/SingleChildScrollView
+     (let [stats (library-stats (:library @store/app-state))]
+       (m/Dialog
+        .backgroundColor (t/surface)
+        .shape (m/RoundedRectangleBorder
+                .borderRadius (m.BorderRadius/circular t/radius-m)
+                .side (m/BorderSide .color (t/outline) .width 1.0))
         .child
-        (m/Column
-         .mainAxisSize m.MainAxisSize/min
-         .crossAxisAlignment m.CrossAxisAlignment/start
-         .children
-         [(ui/text "Version 1.0.0" {:size 13.0 :color (t/ink-muted)})
-          (ui/gap-v 12)
-          (ui/text "Books, notes, and progress stay on this device."
-                   {:size 14.0 :max-lines 4})
-          (ui/gap-v 12)
-          (ui/text (stats-line (:library @store/app-state))
-                   {:size 13.0 :color t/primary :max-lines 4})])))
-      .actions
-      [(m/TextButton
-        .onPressed (fn [] (.pop (m/Navigator.of dctx)) nil)
-        .child (m/Text "Close"))])))
+        (m/ConstrainedBox
+         .constraints (m/BoxConstraints .maxHeight 320.0 .maxWidth 360.0)
+         .child
+         (m/Padding
+          .padding (m.EdgeInsets/all 20.0)
+          .child
+          (m/Row
+           .mainAxisSize m.MainAxisSize/min
+           .crossAxisAlignment m.CrossAxisAlignment/stretch
+           .children
+           [(m/Column
+             .crossAxisAlignment m.CrossAxisAlignment/center
+             .children
+             [(m/Container
+               .width 40.0 .height 40.0
+               .decoration (m/BoxDecoration
+                            .color t/primary-soft
+                            .borderRadius (m.BorderRadius/circular 12.0))
+               .child (m/Center .child (m/Icon m.Icons/menu_book .color t/primary .size 22.0)))
+              (m/SizedBox .height 12.0)
+              (m/Expanded
+               .child (ui/text "MGL EPUB" {:size 18.0 :weight m.FontWeight/bold}))
+              (ui/text "v1.0.0" {:size 12.0 :color (t/ink-muted)})])
+            (ui/gap-h 16)
+            (m/VerticalDivider .width 1.0 .color (t/outline))
+            (ui/gap-h 16)
+            (ui/text "Books, notes, and progress stay on this device."
+                     {:size 14.0 :color (t/ink-muted)})
+            (ui/gap-h 16)
+            (m/Row
+             .mainAxisSize m.MainAxisSize/min
+             .children
+             (vec (interpose (ui/gap-h 8) (map stat-column stats))))
+            (ui/gap-h 16)
+            (m/Column
+             .mainAxisAlignment m.MainAxisAlignment/end
+             .children
+             [(mgl/MongolTextButton
+               .onPressed (fn [] (.pop (m/Navigator.of dctx)) nil)
+               .child (ui/text "Close" {:size 14.0 :color t/primary :weight m.FontWeight/bold}))])])))))))
   nil)
