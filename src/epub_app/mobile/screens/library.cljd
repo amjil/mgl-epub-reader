@@ -52,38 +52,39 @@
    (m/Column
     .mainAxisSize m.MainAxisSize/min
     .children
-    [(m/Container
-      .width 120.0
-      .height 120.0
-      .decoration (m/BoxDecoration
-                   .gradient (m/LinearGradient
-                              .colors [t/primary-soft (t/fade t/primary-soft 0.3)]
-                              .begin m.Alignment/topLeft
-                              .end m.Alignment/bottomRight)
-                   .borderRadius (m/BorderRadius.circular t/radius-xl)
-                   .boxShadow t/shadow-md)
-      .child (m/Center
-              .child (m/Icon m.Icons/auto_stories_rounded
-                             .size 60.0
-                             .color t/primary)))
-     (ui/gap-v 24)
-     (t/mongol-label "ᠮᠣᠩᠭᠤᠯ ᠨᠣᠮ ᠤᠩᠰᠢᠭᠴᠢ"
-                     :size 20.0 :weight m.FontWeight/bold)
-     (ui/gap-v 8)
-     (t/mongol-label "EPUB ᠨᠣᠮ ᠣᠷᠣᠭᠤᠯᠬᠤ"
-                     :size 15.0 :color (t/ink-muted))
-     (when (:error state)
-       (m/Padding
-        .padding (m/EdgeInsets.only .top 16.0)
-        .child
-        (m/Container
-         .padding (m/EdgeInsets.symmetric .horizontal 16.0 .vertical 12.0)
-         .decoration (m/BoxDecoration
-                      .color (t/fade t/danger 0.1)
-                      .borderRadius (m/BorderRadius.circular t/radius-m)
-                      .border (m/Border.all .color t/danger .width 1.0))
-         .child (ui/text (:error state)
-                         {:color t/danger :size 13.0}))))])))
+    (filterv some?
+             [(m/Container
+               .width 120.0
+               .height 120.0
+               .decoration (m/BoxDecoration
+                            .gradient (m/LinearGradient
+                                       .colors [t/primary-soft (t/fade t/primary-soft 0.3)]
+                                       .begin m.Alignment/topLeft
+                                       .end m.Alignment/bottomRight)
+                            .borderRadius (m/BorderRadius.circular t/radius-xl)
+                            .boxShadow t/shadow-md)
+               .child (m/Center
+                       .child (m/Icon m.Icons/auto_stories_rounded
+                                      .size 60.0
+                                      .color t/primary)))
+              (ui/gap-v 24)
+              (t/mongol-label "ᠮᠣᠩᠭᠤᠯ ᠨᠣᠮ ᠤᠩᠰᠢᠭᠴᠢ"
+                              :size 20.0 :weight m.FontWeight/bold)
+              (ui/gap-v 8)
+              (t/mongol-label "EPUB ᠨᠣᠮ ᠣᠷᠣᠭᠤᠯᠬᠤ"
+                              :size 15.0 :color (t/ink-muted))
+              (when (:error state)
+                (m/Padding
+                 .padding (m/EdgeInsets.only .top 16.0)
+                 .child
+                 (m/Container
+                  .padding (m/EdgeInsets.symmetric .horizontal 16.0 .vertical 12.0)
+                  .decoration (m/BoxDecoration
+                               .color (t/fade t/danger 0.1)
+                               .borderRadius (m/BorderRadius.circular t/radius-m)
+                               .border (m/Border.all .color t/danger .width 1.0))
+                  .child (ui/text (:error state)
+                                  {:color t/danger :size 13.0}))))]))))
 
 ;; Books pane
 (defn- books-pane [state ctx]

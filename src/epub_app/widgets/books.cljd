@@ -411,40 +411,42 @@
          .crossAxisAlignment m.CrossAxisAlignment/start
          .mainAxisAlignment m.MainAxisAlignment/spaceBetween
          .children
-         [(m/Column
-           .crossAxisAlignment m.CrossAxisAlignment/start
-           .children
-           [(ui/text (or (.-title book) "ᠨᠡᠷᠡᠢᠳᠦᠭᠡᠢ")
-                     {:size 17.0 :weight m.FontWeight/w600 :max-lines 2})
-            (when (seq author)
-              (m/Padding
-               .padding (m/EdgeInsets.only .top 6.0)
-               .child (ui/text author {:size 13.0 :color (t/ink-muted) :max-lines 1})))
-            (when (seq (or opened ""))
-              (m/Padding
-               .padding (m/EdgeInsets.only .top 6.0)
-               .child (ui/text opened {:size 11.0 :color (t/ink-faint) :max-lines 1})))])
-          (when (> progress 0.0)
-            (m/Column
-             .crossAxisAlignment m.CrossAxisAlignment/start
-             .children
-             [(ui/text (str (int (* progress 100)) "%")
-                       {:size 11.0 :color t/primary :weight m.FontWeight/w500})
-              (ui/gap-v 3)
-              (m/Container
-               .height 2.5
-               .decoration (m/BoxDecoration
-                            .color (t/surface-2)
-                            .borderRadius (m/BorderRadius.circular 2.0))
-               .child
-               (m/FractionallySizedBox
-                .widthFactor progress
-                .child
-                (m/Container
-                 .decoration (m/BoxDecoration
-                              .gradient (m/LinearGradient
-                                         .colors [t/primary t/primary-deep])
-                              .borderRadius (m/BorderRadius.circular 2.0)))))]))]))
+         (filterv some?
+                  [(m/Column
+                    .crossAxisAlignment m.CrossAxisAlignment/start
+                    .children
+                    (filterv some?
+                             [(ui/text (or (.-title book) "ᠨᠡᠷᠡᠢᠳᠦᠭᠡᠢ")
+                                       {:size 17.0 :weight m.FontWeight/w600 :max-lines 2})
+                              (when (seq author)
+                                (m/Padding
+                                 .padding (m/EdgeInsets.only .top 6.0)
+                                 .child (ui/text author {:size 13.0 :color (t/ink-muted) :max-lines 1})))
+                              (when (seq (or opened ""))
+                                (m/Padding
+                                 .padding (m/EdgeInsets.only .top 6.0)
+                                 .child (ui/text opened {:size 11.0 :color (t/ink-faint) :max-lines 1}))) ]))
+                   (when (> progress 0.0)
+                     (m/Column
+                      .crossAxisAlignment m.CrossAxisAlignment/start
+                      .children
+                      [(ui/text (str (int (* progress 100)) "%")
+                                {:size 11.0 :color t/primary :weight m.FontWeight/w500})
+                       (ui/gap-v 3)
+                       (m/Container
+                        .height 2.5
+                        .decoration (m/BoxDecoration
+                                     .color (t/surface-2)
+                                     .borderRadius (m/BorderRadius.circular 2.0))
+                        .child
+                        (m/FractionallySizedBox
+                         .widthFactor progress
+                         .child
+                         (m/Container
+                          .decoration (m/BoxDecoration
+                                       .gradient (m/LinearGradient
+                                                  .colors [t/primary t/primary-deep])
+                                       .borderRadius (m/BorderRadius.circular 2.0)))))]))])))
        (ui/gap-h 8)
        (ui/v-progress progress)
        (m/Align
